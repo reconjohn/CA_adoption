@@ -263,8 +263,6 @@ d1 <- data %>%
   dplyr::select(-Future,-Lsubsidy,-Hsubsidy)
 
 
-
-
 # mrp %>% 
 #   left_join(CA_t %>% 
 #               st_drop_geometry() %>% 
@@ -384,9 +382,7 @@ dff <- df_long %>%
                                "Others")),
          class = factor(class, levels = c("Natural increase","Policy intervention","Others")))
 
-# *** FIX IS HERE ***
-# 3. Create a separate, filtered data frame for the connector lines.
-# This data frame excludes the last bar of each 'tech' group.
+
 segment_data <- dff %>%
   group_by(tech) %>%
   filter(id < max(id))
@@ -399,8 +395,8 @@ hlines <- tibble::tribble(
 ) %>% 
   mutate(tech = factor(tech, levels = c("PS","EV","HP")))
 
-# 4. Create the cascade chart
-ggplot(dff, aes(x = stage)) +
+opt_result <- dff %>% 
+  ggplot(aes(x = stage)) +
   
   # Draw the cascade bars using geom_rect
   geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = class)) +
@@ -414,9 +410,6 @@ ggplot(dff, aes(x = stage)) +
             fontface = "bold",
             size = 4) +
   
-  # Add connector lines between bars
-  # *** FIX IS HERE ***
-  # We now explicitly tell this layer to use our pre-filtered 'segment_data'
   geom_segment(data = segment_data,
                aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
                color = "gray40",
@@ -445,11 +438,198 @@ ggplot(dff, aes(x = stage)) +
     panel.grid.minor.x = element_blank()
   )
 
+ggsave("./fig/opt_result.png",
+       opt_result,
+       width = 12, height = 8)
 
-### DAC
 
+### DAC 
+d1_dac <- data %>% 
+  group_by(dac) %>% 
+  summarise(across(
+    .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
+    .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
+  )) %>% 
+  gather(key, adoption, -dac) %>% 
+  mutate(
+    tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
+    scenario = case_when(
+      !str_detect(key, "^future") ~ "current",
+      str_detect(key, "(_\\d{1}$)|(PV$)") ~ "Future",
+      str_detect(key, "_\\d{2}$") ~ "Lsubsidy",
+      str_detect(key, "_\\d{3}$") ~ "Hsubsidy",
+      TRUE ~ "future"  # fallback for keys like "future_PV"
+    )
+  ) %>% 
+  dplyr::select(-key) %>%
+  pivot_wider(names_from = scenario, values_from = adoption) %>% 
+  mutate(
+    future = Future - current,
+    low.subsidy = Lsubsidy - future,
+    high.subsidy = Hsubsidy - Lsubsidy
+  ) %>% 
+  dplyr::select(-Future,-Lsubsidy,-Hsubsidy) %>% 
+  mutate(dac = ifelse(dac == "0", "Non_DAC", "DAC"))
+
+
+### optimistic scenarios
+select_scene <- list(c("home_age","peer_PV"),
+                   c("home_age","peer_EV","charging_5mile_f","rangeanxiety","home_age"),
+                   c("peer_HP"),
+                   c("home_age","peer_IC"),
+                   c("home_age","peer_PV"))
+
+
+rates <- list(c(0,0.2,-0.14,-0.23),
+              c(0,0.2,-2,0.32,-0.04,-0.26),
+              c(0,-0.25),
+              c(0,0.2,0,-0.17),
+              c(0,0.2,-0.14,-0.23))
+
+
+result <- data.frame()
+for(k in 1:5){
+  
+  b_ev <- mreg_dac(read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+                 data_process(ev = c("Fully electric")) %>% 
+                 data_clean(1), 
+                
+               remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
+                          "education","employment"),
+               scenario = select_scene[[k]],
+               i = k,
+               future = fut[[k]][1])
 
   
+  df <- b_ev %>% t() %>% 
+    as.data.frame() %>% 
+    slice(-1) %>% 
+    mutate(var = row.names(.)) %>% 
+    cbind(tibble(rate = rates[[k]])) %>% 
+    mutate(non_DAC = `0`*rate,
+           DAC = `1`*rate) 
+  
+  rd <- df %>%
+    summarise(
+      peer            = sum(non_DAC[str_detect(var, "peer")], na.rm = TRUE),
+      home_age            = sum(non_DAC[str_detect(var, "home_age")], na.rm = TRUE),
+      rangeanxiety    = sum(non_DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
+      charging_5mile  = sum(non_DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+    ) %>% 
+    mutate(tech = ipt[k],
+           dac = "Non_DAC") %>% 
+    rbind(
+      df %>%
+        summarise(
+          peer            = sum(DAC[str_detect(var, "peer")], na.rm = TRUE),
+          home_age            = sum(DAC[str_detect(var, "home_age")], na.rm = TRUE),
+          rangeanxiety    = sum(DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
+          charging_5mile  = sum(DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+        ) %>% 
+        mutate(tech = ipt[k],
+               dac = "DAC") 
+    )
+  
+  result <- rbind(rd, result)
+}
+
+
+df <- d1_dac %>% 
+  left_join(result, by = c("tech", "dac")) 
+
+stage_order <- c("current", "future", "low.subsidy", "high.subsidy", 
+                 "peer", "home_age", "rangeanxiety", "charging_5mile")
+
+df_long <- df %>%
+  pivot_longer(cols = -c("dac","tech"), names_to = "stage", values_to = "value") %>%
+  mutate(stage = factor(stage, levels = stage_order)) %>% 
+  
+  group_by(dac, tech) %>%
+  mutate(
+    value = replace_na(value, 0),
+    start = cumsum(lag(value, default = 0)),  # cumulative start
+    end = start + value
+  ) %>% 
+  mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC"))) %>% 
+  mutate(scene = "Optimistic")
+
+
+dff <- df_long %>%
+  mutate(across(where(is.numeric), ~ .x * 100)) %>% 
+  group_by(dac, tech) %>%
+  mutate(id = row_number(),
+         label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
+  ungroup() %>% # Ungrouping is good practice after mutations
+  mutate(class = ifelse(stage %in% c("current","future"), "Natural increase",
+                        ifelse(stage %in% c("low.subsidy","high.subsidy"), "Policy intervention",
+                               "Others")),
+         class = factor(class, levels = c("Natural increase","Policy intervention","Others")))
+
+segment_data <- dff %>%
+  group_by(dac, tech) %>%
+  filter(id < max(id)) %>% 
+  filter(tech != "PV")
+
+hlines <- tibble::tribble(
+  ~tech, ~y_intercept, ~line_label,
+  "PS", 20, "Base: 0.20",
+  "EV", 42, "Base: 0.42",
+  "HP", 46,   "Base: 46" # This line will not appear as there is no "HP" data
+) %>% 
+  mutate(tech = factor(tech, levels = c("PS","EV","HP")))
+
+
+dac_result <- dff %>% 
+  filter(tech != "PV") %>% 
+  ggplot(aes(x = stage)) +
+  
+  # Draw the cascade bars using geom_rect
+  geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = class)) +
+  
+  geom_hline(data = hlines, aes(yintercept = y_intercept), 
+             color = "darkred", linetype = "dashed", linewidth = 1) +
+  
+  # Add labels inside the bars
+  geom_text(aes(x = id, y = end + 2, label = label_val),
+            color = "black",
+            fontface = "bold",
+            size = 4) +
+
+  geom_segment(data = segment_data,
+               aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
+               color = "gray40",
+               linewidth = 0.75) +
+  
+  # Facet by 'tech' to create separate charts for PV and PS
+  facet_grid(dac ~ tech, scales = "free_x") +
+  
+  coord_flip() +
+  
+  # Format labels and titles
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "",
+    x = "Stage",
+    y = "Cumulative Adoption (%)",
+    fill = ""
+  ) +
+  
+  # Customize the theme for better readability
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.position = "bottom",
+    strip.text = element_text(size = 14, face = "bold"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+ggsave("./fig/dac_result.png",
+       dac_result,
+       width = 12, height = 8)
+
+
 ### pessimistic scenarios
 tech <- c("PV","EV","HP","IC","PS")
 

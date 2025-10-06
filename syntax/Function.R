@@ -59,7 +59,7 @@ options(tigris_use_cache = TRUE, tigris_class = "sf")
 
 # uploading library 
 lapply(c("spatstat","colorRamps","tmap","ggmap","mapview","geoR","knitr","kableExtra","data.table","gdata","tigris","sf","scales","tidycensus","plotly", "tidyverse"), require, character.only = TRUE)
-
+ggsave <- function(..., bg = 'white') ggplot2::ggsave(..., bg = bg)
 sf::sf_use_s2(FALSE)
 load("./data/dac_sf.RData") # CA_t, cz, dac_sf, sc_map (DAC, climate zone spatial data)
 # names(mrp)
@@ -3007,3 +3007,10 @@ mrp <- read_csv("./data/raw/mrp_scenariovars_tract.csv") %>%
   mutate(GEOID = str_sub(geoid_tract2020, 10)) %>%
   dplyr::select(-geoid_tract2020,-future_EV10) %>% 
   mutate(future_PS_0 = ifelse(future_PS_0 > future_PS_72, future_PS_72, future_PS_0))
+
+
+future2 <- c(120, 75) # if i == 2,
+future3 <- c(110, 30) # if i == 3,
+future4 <- c(159, 35) # if i == 4,
+future1 <- future5 <- c(127, 72) # if i == 5,
+fut <- list(future1,future2,future3,future4,future5)

@@ -35,12 +35,6 @@ tt %>%
 
 
 ### scenario 
-future2 <- c(120, 75) # if i == 2,
-future3 <- c(110, 30) # if i == 3,
-future4 <- c(159, 35) # if i == 4,
-future1 <- future5 <- c(127, 72) # if i == 5,
-fut <- list(future1,future2,future3,future4,future5)
-
 effect <- list()
 for(i in seq_along(ipt)){
   future <- fut[[i]]
@@ -100,6 +94,7 @@ for(i in 1:5){
 }
 
 
+
 select_var <- list(c("peer_effect","home_age"),
                    c("peer_effect","charging_5mile_f1","rangeanxiety","home_age"),
                    c("peer_effect"),
@@ -145,12 +140,11 @@ for(i in 1:5){
 }
 
 
+### combined burden
 ### adoption change (final future adoption including all scenario optimistics - future adoption)
 # PV: -4 MWh/HHyr
 # EV: 2 MWh/HHyr
 # HP: 2 MWh/HHyr
-
-
 burden <- effect[[9]] %>% # PS optimistic
   left_join(mrp %>% 
               dplyr::select(GEOID, future_PS_0), by = "GEOID") %>% 
@@ -451,6 +445,10 @@ ggplot(dff, aes(x = stage)) +
     panel.grid.minor.x = element_blank()
   )
 
+
+### DAC
+
+
   
 ### pessimistic scenarios
 tech <- c("PV","EV","HP","IC","PS")
@@ -569,4 +567,5 @@ df_long %>%
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
+
 

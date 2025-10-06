@@ -1,20 +1,14 @@
 source("./syntax/Function.R")
 ggsave <- function(..., bg = 'white') ggplot2::ggsave(..., bg = bg)
 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
-remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
-ipt <- c("PV", "EV", "HP", "IC", "PS")
 
-### MRP wtp
-# names(mrp)
-mrp <- read_csv("./data/raw/mrp_scenariovars_tract.csv") %>% 
-  mutate(GEOID = str_sub(geoid_tract2020, 10)) %>%
-  dplyr::select(-geoid_tract2020,-future_EV10) %>% 
-  mutate(future_PS_0 = ifelse(future_PS_0 > future_PS_72, future_PS_72, future_PS_0))
+remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
+
 
 ### MRP mapping
 tt <- CA_t %>% dplyr::select(GEOID, estimate) %>%
-  left_join(mrp, by = "GEOID")
+  left_join(mrp %>% 
+              dplyr::select(-future_PV), by = "GEOID")
 
 tt %>%
   gather(key, value, future_EV_0:future_IC_159) %>%
@@ -39,238 +33,30 @@ tt %>%
         panel.grid.major = element_blank(),
         plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
 
-### including peer effects
-final_ef_peer <- function(data, i, future){
 
-  scenario <- if (i %in% c(1, 5)) {
-    c("peer_PV", "home_age")
-  } else if (i == 2) {
-    c("peer_EV", "charging_5mile_f", "rangeanxiety", "home_age")
-  } else if (i == 3) {
-    "peer_HP"
-  } else if (i == 4) {
-    c("peer_IC", "home_age")
-  } else {
-    NA_character_
-  }
-
-  remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
-
-  # lpm
-  re <- freg_lpm(data, remove, i, scenario, future)
-
-  # logit
-  # re <- freg_logit(data, remove, i, scenario, future)
-  if(future > 100){ # if optimistic
-    if(i %in% c(1,5)){
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.23*R_effect,
-          str_detect(scene, "peer") ~ -0.14*R_effect,
-          str_detect(scene, "Older") ~ -0.2*R_effect
-        ))
-    }else if(i == 3){
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.25*R_effect
-        ))
-    }else if(i == 4){
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.17*R_effect,
-          str_detect(scene, "Older") ~ -0.2*R_effect
-        ))
-    }else{
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.26*R_effect,
-          str_detect(scene, "peer") ~ -0.04*R_effect,
-          str_detect(scene, "charging") ~ 0.32*R_effect,
-          str_detect(scene, "Older") ~ -0.2*R_effect,
-          str_detect(scene, "range") ~ -2*R_effect # 100 mile different is 1 sd
-        ))
-    }
-
-  }else{ # if pessimistic
-    if(i %in% c(1,5)){
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.18*R_effect,
-          str_detect(scene, "Older") ~ -0.09*R_effect
-        ))
-    }else if(i == 3){
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.11*R_effect
-        ))
-    }else if(i == 4){
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.07*R_effect,
-          str_detect(scene, "Older") ~ -0.09*R_effect
-        ))
-    }else{
-      re <- re %>%
-        mutate(R_effect = case_when(
-          str_detect(scene, "none") ~ -0.15*R_effect,
-          str_detect(scene, "charging") ~ 0.16*R_effect,
-          str_detect(scene, "range") ~ -1*R_effect,
-          str_detect(scene, "Older") ~ -0.09*R_effect
-        ))
-    }
-  }
-
-  ### scenario
-  # which WTP?, which peer?, which charger?
-  crss <- re %>%
-    pivot_wider(names_from = scene, values_from = R_effect) %>% 
-    mutate(Effect = rowSums(dplyr::select(., where(is.numeric)), na.rm = TRUE)) 
-  
-  crss <- sc_map%>% 
-    left_join(crss, by = "group") %>% 
-
-    st_make_valid() %>%
-    st_intersection(CA_t %>% dplyr::select(GEOID) %>%
-                      st_make_valid())
-
-  # calculate intersected areas
-  crss$area <- st_area(crss) %>% as.numeric()
-
-  # aggregate at puma level with area weights
-  f_crss <- crss %>%
-    st_drop_geometry() %>% 
-    group_by(GEOID) %>%
-    summarise(across(where(is.numeric), ~ weighted.mean(.x, area, na.rm = TRUE))) %>% 
-    dplyr::select(-area)
-
-  # should be modified after real MRP data received
-  if(i == 1){
-    Mrp <- mrp %>%
-      dplyr::select(GEOID, which(str_detect(names(.), paste0("future_",ipt[i]))))
-  }else{
-    Mrp <- mrp %>%
-      dplyr::select(GEOID, which(str_detect(names(.), paste0("future_",ipt[i],"_",future))))
-  }
-
-  colnames(Mrp)[2] <- "MRP"
-
-  ### final adoption
-  f_d <- f_crss %>%
-    left_join(Mrp, by = "GEOID") %>%
-    mutate(Final = MRP + Effect)
-
-  return(f_d)
-
-}
-
-
-# ### excluding peer effects
-# final_ef <- function(data, i, future){
-#   
-#   scenario <- if (i %in% c(1,5)) {
-#     c("home_age")
-#   } else if (i == 2) {
-#     c("charging_5mile_f", "rangeanxiety")
-#   } else {
-#     NA_character_
-#   }
-#   
-#   remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
-#   
-#   # lpm
-#   re <- freg_lpm(data, remove, i, scenario, future) 
-#   
-#   # logit
-#   # re <- freg_logit(data, remove, i, scenario, future)
-#   if(future > 100){ # if optimistic
-#     if(i %in% c(1,5)){
-#       re <- re %>% 
-#         mutate(R_effect = case_when(
-#           str_detect(scene, "Older") ~ -0.22*R_effect
-#         ))
-#     }else{
-#       re <- re %>% 
-#         mutate(R_effect = case_when(
-#           str_detect(scene, "charging") ~ 0.32*R_effect,
-#           str_detect(scene, "range") ~ -2*R_effect
-#         ))
-#     }
-#     
-#   }else{ # if pessimistic
-#     if(i %in% c(1,5)){
-#       re <- re %>% 
-#         mutate(R_effect = case_when(
-#           str_detect(scene, "Older") ~ -0.11*R_effect
-#         ))
-#     }else{
-#       re <- re %>% 
-#         mutate(R_effect = case_when(
-#           str_detect(scene, "charging") ~ 0.16*R_effect,
-#           str_detect(scene, "range") ~ -1*R_effect
-#         ))
-#     }
-#   }
-#   
-#   
-#   
-#   
-#   ### scenario
-#   # which WTP?, which peer?, which charger?
-#   crss <- re %>% 
-#     group_by(group) %>% 
-#     summarise(Effect = sum(R_effect, na.rm = T)) %>% 
-#     
-#     st_make_valid() %>% 
-#     st_intersection(CA_t %>% dplyr::select(GEOID) %>% 
-#                       st_make_valid())
-#   
-#   # calculate intersected areas
-#   crss$area <- st_area(crss) %>% as.numeric()
-#   
-#   # aggregate at puma level with area weights
-#   f_crss <- crss %>% 
-#     st_make_valid() %>% 
-#     group_by(GEOID) %>% 
-#     summarise(across(Effect, ~ weighted.mean(.x, area))) %>% 
-#     st_drop_geometry()
-#   
-#   
-#   # should be modified after real MRP data received
-#   Mrp <- mrp %>% 
-#     dplyr::select(GEOID, which(str_detect(names(.), paste0("future_",ipt[i],"_",future))))
-#   
-#   colnames(Mrp)[2] <- "MRP"
-#   
-#   ### final adoption
-#   f_d <- f_crss %>% 
-#     left_join(Mrp, by = "GEOID") %>% 
-#     mutate(Final = MRP + Effect)
-#   
-#   return(f_d)
-#   
-# }
-
+### scenario 
 future2 <- c(120, 75) # if i == 2,
 future3 <- c(110, 30) # if i == 3,
 future4 <- c(159, 35) # if i == 4,
 future1 <- future5 <- c(127, 72) # if i == 5,
-tech <- c("PV","EV","HP","IC","PS")
-
 fut <- list(future1,future2,future3,future4,future5)
 
 effect <- list()
-for(i in seq_along(tech)){
+for(i in seq_along(ipt)){
   future <- fut[[i]]
   scene <- c("Optimistic","Pessimistic")
   
   for(j in 1:2){
     f_d <- final_ef_peer(data, i, future[j]) %>% 
-      mutate(class = paste0(tech[i],"_",scene[j]))
+      mutate(class = paste0(ipt[i],"_",scene[j]))
     
     effect <- append(effect, list(f_d))
     
   }
 }
+
+save(effect, mrp, file = "./data/results.Rdata") # for official sharing
+load("./data/results.Rdata")
 
 
 ### mapping the final adoption 
@@ -307,7 +93,7 @@ for(i in 1:5){
           panel.grid.major = element_blank(),
           plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
   
-  ggsave(paste0("./fig/",tech[i],"_final.png"),
+  ggsave(paste0("./fig/",ipt[i],"_final.png"),
          plot,
          width = 12, height = 8)
   
@@ -352,14 +138,11 @@ for(i in 1:5){
           panel.grid.major = element_blank(),
           plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
   
-  ggsave(paste0("./fig/",tech[i],"_effect.png"),
+  ggsave(paste0("./fig/",ipt[i],"_effect.png"),
          plot,
          width = 12, height = 8)
   
 }
-
-save(effect, mrp, file = "./data/results.Rdata") # for official sharing
-load("./data/results.Rdata")
 
 
 ### adoption change (final future adoption including all scenario optimistics - future adoption)
@@ -502,8 +285,6 @@ d1 <- data %>%
   
 
 ### optimistic scenarios
-tech <- c("PV","EV","HP","IC","PS")
-
 select_var <- list(c("peer","home_age"),
                    c("peer","charging_5mile_f1","rangeanxiety","home_age"),
                    c("peer"),
@@ -542,7 +323,7 @@ for(k in 1:5){
       rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE),
       charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
     ) %>% 
-    mutate(tech = tech[k])
+    mutate(tech = ipt[k])
   
   result <- rbind(rd, result)
 }

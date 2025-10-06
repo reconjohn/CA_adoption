@@ -62,6 +62,7 @@ lapply(c("spatstat","colorRamps","tmap","ggmap","mapview","geoR","knitr","kableE
 
 sf::sf_use_s2(FALSE)
 load("./data/dac_sf.RData") # CA_t, cz, dac_sf, sc_map (DAC, climate zone spatial data)
+# names(mrp)
 # crosswalk <- read_csv("./survey.csv")
 
 ## PSPS test from Qi
@@ -2787,3 +2788,222 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   
   return(re)
 }
+
+
+### including peer effects
+final_ef_peer <- function(data, i, future){
+  
+  scenario <- if (i %in% c(1, 5)) {
+    c("peer_PV", "home_age")
+  } else if (i == 2) {
+    c("peer_EV", "charging_5mile_f", "rangeanxiety", "home_age")
+  } else if (i == 3) {
+    "peer_HP"
+  } else if (i == 4) {
+    c("peer_IC", "home_age")
+  } else {
+    NA_character_
+  }
+  
+  remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
+  
+  # lpm
+  re <- freg_lpm(data, remove, i, scenario, future)
+  
+  # logit
+  # re <- freg_logit(data, remove, i, scenario, future)
+  if(future > 100){ # if optimistic
+    if(i %in% c(1,5)){
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.23*R_effect,
+          str_detect(scene, "peer") ~ -0.14*R_effect,
+          str_detect(scene, "Older") ~ -0.2*R_effect
+        ))
+    }else if(i == 3){
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.25*R_effect
+        ))
+    }else if(i == 4){
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.17*R_effect,
+          str_detect(scene, "Older") ~ -0.2*R_effect
+        ))
+    }else{
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.26*R_effect,
+          str_detect(scene, "peer") ~ -0.04*R_effect,
+          str_detect(scene, "charging") ~ 0.32*R_effect,
+          str_detect(scene, "Older") ~ -0.2*R_effect,
+          str_detect(scene, "range") ~ -2*R_effect # 100 mile different is 1 sd
+        ))
+    }
+    
+  }else{ # if pessimistic
+    if(i %in% c(1,5)){
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.18*R_effect,
+          str_detect(scene, "Older") ~ -0.09*R_effect
+        ))
+    }else if(i == 3){
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.11*R_effect
+        ))
+    }else if(i == 4){
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.07*R_effect,
+          str_detect(scene, "Older") ~ -0.09*R_effect
+        ))
+    }else{
+      re <- re %>%
+        mutate(R_effect = case_when(
+          str_detect(scene, "none") ~ -0.15*R_effect,
+          str_detect(scene, "charging") ~ 0.16*R_effect,
+          str_detect(scene, "range") ~ -1*R_effect,
+          str_detect(scene, "Older") ~ -0.09*R_effect
+        ))
+    }
+  }
+  
+  ### scenario
+  # which WTP?, which peer?, which charger?
+  crss <- re %>%
+    pivot_wider(names_from = scene, values_from = R_effect) %>% 
+    mutate(Effect = rowSums(dplyr::select(., where(is.numeric)), na.rm = TRUE)) 
+  
+  crss <- sc_map%>% 
+    left_join(crss, by = "group") %>% 
+    
+    st_make_valid() %>%
+    st_intersection(CA_t %>% dplyr::select(GEOID) %>%
+                      st_make_valid())
+  
+  # calculate intersected areas
+  crss$area <- st_area(crss) %>% as.numeric()
+  
+  # aggregate at puma level with area weights
+  f_crss <- crss %>%
+    st_drop_geometry() %>% 
+    group_by(GEOID) %>%
+    summarise(across(where(is.numeric), ~ weighted.mean(.x, area, na.rm = TRUE))) %>% 
+    dplyr::select(-area)
+  
+  # should be modified after real MRP data received
+  if(i == 1){
+    Mrp <- mrp %>%
+      dplyr::select(GEOID, which(str_detect(names(.), paste0("future_",ipt[i]))))
+  }else{
+    Mrp <- mrp %>%
+      dplyr::select(GEOID, which(str_detect(names(.), paste0("future_",ipt[i],"_",future))))
+  }
+  
+  colnames(Mrp)[2] <- "MRP"
+  
+  ### final adoption
+  f_d <- f_crss %>%
+    left_join(Mrp, by = "GEOID") %>%
+    mutate(Final = MRP + Effect)
+  
+  return(f_d)
+  
+}
+
+
+# ### excluding peer effects
+# final_ef <- function(data, i, future){
+#   
+#   scenario <- if (i %in% c(1,5)) {
+#     c("home_age")
+#   } else if (i == 2) {
+#     c("charging_5mile_f", "rangeanxiety")
+#   } else {
+#     NA_character_
+#   }
+#   
+#   remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
+#   
+#   # lpm
+#   re <- freg_lpm(data, remove, i, scenario, future) 
+#   
+#   # logit
+#   # re <- freg_logit(data, remove, i, scenario, future)
+#   if(future > 100){ # if optimistic
+#     if(i %in% c(1,5)){
+#       re <- re %>% 
+#         mutate(R_effect = case_when(
+#           str_detect(scene, "Older") ~ -0.22*R_effect
+#         ))
+#     }else{
+#       re <- re %>% 
+#         mutate(R_effect = case_when(
+#           str_detect(scene, "charging") ~ 0.32*R_effect,
+#           str_detect(scene, "range") ~ -2*R_effect
+#         ))
+#     }
+#     
+#   }else{ # if pessimistic
+#     if(i %in% c(1,5)){
+#       re <- re %>% 
+#         mutate(R_effect = case_when(
+#           str_detect(scene, "Older") ~ -0.11*R_effect
+#         ))
+#     }else{
+#       re <- re %>% 
+#         mutate(R_effect = case_when(
+#           str_detect(scene, "charging") ~ 0.16*R_effect,
+#           str_detect(scene, "range") ~ -1*R_effect
+#         ))
+#     }
+#   }
+#   
+#   
+#   
+#   
+#   ### scenario
+#   # which WTP?, which peer?, which charger?
+#   crss <- re %>% 
+#     group_by(group) %>% 
+#     summarise(Effect = sum(R_effect, na.rm = T)) %>% 
+#     
+#     st_make_valid() %>% 
+#     st_intersection(CA_t %>% dplyr::select(GEOID) %>% 
+#                       st_make_valid())
+#   
+#   # calculate intersected areas
+#   crss$area <- st_area(crss) %>% as.numeric()
+#   
+#   # aggregate at puma level with area weights
+#   f_crss <- crss %>% 
+#     st_make_valid() %>% 
+#     group_by(GEOID) %>% 
+#     summarise(across(Effect, ~ weighted.mean(.x, area))) %>% 
+#     st_drop_geometry()
+#   
+#   
+#   # should be modified after real MRP data received
+#   Mrp <- mrp %>% 
+#     dplyr::select(GEOID, which(str_detect(names(.), paste0("future_",ipt[i],"_",future))))
+#   
+#   colnames(Mrp)[2] <- "MRP"
+#   
+#   ### final adoption
+#   f_d <- f_crss %>% 
+#     left_join(Mrp, by = "GEOID") %>% 
+#     mutate(Final = MRP + Effect)
+#   
+#   return(f_d)
+#   
+# }
+
+
+data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
+mrp <- read_csv("./data/raw/mrp_scenariovars_tract.csv") %>% 
+  mutate(GEOID = str_sub(geoid_tract2020, 10)) %>%
+  dplyr::select(-geoid_tract2020,-future_EV10) %>% 
+  mutate(future_PS_0 = ifelse(future_PS_0 > future_PS_72, future_PS_72, future_PS_0))

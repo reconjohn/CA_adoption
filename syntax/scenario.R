@@ -49,8 +49,16 @@ for(i in seq_along(ipt)){
   }
 }
 
+
+df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","MRP","Final","class"), drop = FALSE])
+combined_df <- bind_rows(df_common)
+write_csv(combined_df, "./data/result.csv")
+
+
+
 save(effect, mrp, file = "./data/results.Rdata") # for official sharing
 load("./data/results.Rdata")
+
 
 
 ### mapping the final adoption 
@@ -324,8 +332,8 @@ for(k in 1:5){
 df <- d1 %>% 
   left_join(result, by = "tech") 
 
-stage_order <- c("current", "future", "low.subsidy", "high.subsidy", 
-                 "peer", "home_age", "rangeanxiety", "charging_5mile")
+stage_order <- c("Current", "Future", "Subsidy", "Higher subsidy", 
+                 "Peer effects", "Home built after 2020", "Range", "Fast charger")
 
 
 # df_long <- df %>%
@@ -356,6 +364,16 @@ stage_order <- c("current", "future", "low.subsidy", "high.subsidy",
 
 df_long <- df %>%
   pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
+  mutate(stage = recode(stage,
+                        "current" = "Current",
+                        "future" = "Future",
+                        "low.subsidy" = "Subsidy",
+                        "high.subsidy" = "Higher subsidy",
+                        "peer" = "Peer effects",
+                        "home_age" = "Home built after 2020",
+                        "rangeanxiety" = "Range",
+                        "charging_5mile" = "Fast charger")) %>% 
+  
   mutate(stage = factor(stage, levels = stage_order)) %>% 
   
   group_by(tech) %>%
@@ -365,7 +383,8 @@ df_long <- df %>%
     end = start + value
   ) %>% 
   mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC"))) %>% 
-  mutate(scene = "Optimistic")
+  mutate(scene = "Optimistic") %>% 
+  filter(value >0)
 
 
 
@@ -377,10 +396,10 @@ dff <- df_long %>%
   mutate(id = row_number(),
          label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
   ungroup() %>% # Ungrouping is good practice after mutations
-  mutate(class = ifelse(stage %in% c("current","future"), "Natural increase",
-                        ifelse(stage %in% c("low.subsidy","high.subsidy"), "Policy intervention",
-                               "Others")),
-         class = factor(class, levels = c("Natural increase","Policy intervention","Others")))
+  mutate(class = ifelse(stage %in% c("Current","Future"), "Natural increase",
+                        ifelse(stage %in% c("Subsidy","Higher subsidy"), "Policy intervention",
+                               "Time variant")),
+         class = factor(class, levels = c("Natural increase","Policy intervention","Time variant")))
 
 
 segment_data <- dff %>%
@@ -396,27 +415,30 @@ hlines <- tibble::tribble(
   mutate(tech = factor(tech, levels = c("PS","EV","HP")))
 
 opt_result <- dff %>% 
+  filter(tech != "PV") %>% 
   ggplot(aes(x = stage)) +
   
   # Draw the cascade bars using geom_rect
   geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = class)) +
   
-  geom_hline(data = hlines, aes(yintercept = y_intercept), 
+  geom_hline(data = hlines %>% 
+               filter(tech != "PV"), aes(yintercept = y_intercept), 
              color = "darkred", linetype = "dashed", linewidth = 1) +
   
   # Add labels inside the bars
-  geom_text(aes(x = id, y = end + 4, label = label_val),
+  geom_text(aes(x = id, y = end + 2, label = label_val),
             color = "black",
             fontface = "bold",
             size = 4) +
   
-  geom_segment(data = segment_data,
+  geom_segment(data = segment_data %>% 
+                 filter(tech != "PV"),
                aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
                color = "gray40",
                linewidth = 0.75) +
   
   # Facet by 'tech' to create separate charts for PV and PS
-  facet_wrap(~ tech, scales = "free_x", nrow = 1) +
+  facet_wrap(~ tech, scales = "free_x",  nrow = 1) +
   
   # Format labels and titles
   scale_y_continuous(labels = scales::comma) +
@@ -430,7 +452,7 @@ opt_result <- dff %>%
   # Customize the theme for better readability
   theme_minimal(base_size = 12) +
   theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
     plot.title = element_text(face = "bold", size = 16),
     legend.position = "bottom",
     strip.text = element_text(size = 14, face = "bold"),
@@ -474,14 +496,13 @@ d1_dac <- data %>%
 
 ### optimistic scenarios
 select_scene <- list(c("home_age","peer_PV"),
-                   c("home_age","peer_EV","charging_5mile_f","rangeanxiety","home_age"),
+                   c("home_age","peer_EV","charging_5mile_f","rangeanxiety"),
                    c("peer_HP"),
                    c("home_age","peer_IC"),
                    c("home_age","peer_PV"))
 
-
 rates <- list(c(0,0.2,-0.14,-0.23),
-              c(0,0.2,-2,0.32,-0.04,-0.26),
+              c(0,0.2,-0.04,-0.26,0.32,-2),
               c(0,-0.25),
               c(0,0.2,0,-0.17),
               c(0,0.2,-0.14,-0.23))
@@ -621,8 +642,8 @@ dac_result <- dff %>%
     plot.title = element_text(face = "bold", size = 16),
     legend.position = "bottom",
     strip.text = element_text(size = 14, face = "bold"),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank()
   )
 
 ggsave("./fig/dac_result.png",

@@ -55,6 +55,9 @@ library(ggpubr)
 library(ggrepel)
 library(readxl)
 library(fastDummies)
+library(caret)
+library(xgboost)
+library(tidytext)
 options(tigris_use_cache = TRUE, tigris_class = "sf")
 
 # uploading library 
@@ -1865,6 +1868,174 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   # summary(fit)
   
   return(ranef(fit)$dac)
+}
+
+
+mreg_var <- function(data, remove = NULL, i){
+  
+  # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
+  remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
+  # scenario <- c("peer_PV")
+  # i <- 5
+  # future <- 127
+  
+  da_r <- data %>% 
+    dplyr::select(# remove multicollinear variables
+      
+      # remove predictors with substantial NAs
+      -heatpump_direct,-induction_direct,
+      
+      # remove future adoption
+      -starts_with("future")
+    ) %>% 
+    dplyr::select(-remove)
+
+  
+  # binary
+  bina <- c(
+    "born_us",
+    
+    "charging_5mile_f",
+    "vehicle_next_used",
+    # "vehicle_next_fuel",
+    "charging_work",
+    
+    "therm_winter",
+    
+    "upfrontpayback",
+    "outage_generatorown",
+    "ccmove_where"
+  ) %>% 
+    setdiff(remove)
+  
+  # categorical variables: 
+  cat <- c("race",
+           # "born_us",
+           "home_type",
+           "employment",
+           
+           "peer_EV",
+           "peer_PV",
+           "peer_HP",
+           "peer_IC",
+           
+           # "charging_5mile_f",
+           # "vehicle_next_used",
+           # "vehicle_next_fuel",
+           # "charging_work",
+           
+           "primary_heating_type",
+           "primary_cooling_type",
+           # "therm_winter",
+           
+           "kitchen_range_type",
+           "electrification"
+           # "upfrontpayback",
+           # "outage_generatorown",
+           # "ccmove_where"
+  ) %>% 
+    setdiff(remove)
+  
+  exclusions <- list(
+    c("peer_EV", "peer_HP", "peer_IC"),
+    c("peer_PV", "peer_HP", "peer_IC"),
+    c("peer_EV", "peer_PV", "peer_IC"),
+    c("peer_EV", "peer_HP", "peer_PV")
+  )
+  
+  if(i %in% c(1,5)){
+    cat <- cat %>% setdiff(exclusions[[1]])
+  }else{
+    cat <- cat %>% setdiff(exclusions[[i]])
+  }
+  
+  
+  ftr <- c("climatezone",
+           "dac",
+           "race",
+           "born_us",
+           "home_type",
+           "employment",
+           
+           "peer_EV",
+           "peer_PV",
+           "peer_HP",
+           "peer_IC",
+           
+           "charging_5mile_f",
+           "vehicle_next_used",
+           # "vehicle_next_fuel",
+           "charging_work",
+           
+           "primary_heating_type",
+           "primary_cooling_type",
+           "therm_winter",
+           
+           "kitchen_range_type",
+           "electrification",
+           "upfrontpayback",
+           "outage_generatorown",
+           "ccmove_where"
+  ) %>% 
+    setdiff(remove)
+  
+  # da$race %>% unique
+  da_r[,ftr] <- data.frame(lapply(da_r[ftr],as.factor)) 
+  
+  # dummy sum contrast based on reference category (-1)
+  for (var in cat) {
+    k <- length(levels(da_r[[var]]))
+    contrasts(da_r[[var]]) <- contr.sum(k)
+    colnames(contrasts(da_r[[var]])) <- levels(da_r[[var]])[1:(k-1)]
+  }
+  
+  # for binary
+  for (var in bina) {
+    da_r[[var]] <- factor(da_r[[var]], levels = c(1,0))
+    contrasts(da_r[[var]]) <- contr.sum(2)
+    colnames(contrasts(da_r[[var]])) <- levels(da_r[[var]])[1]
+  }
+  
+  da_r <- da_r %>% 
+    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
+  mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
+    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
+
+  
+  if(i %in% c(1,5)){
+    # for PV, remove zone effect, tech
+    tract <- c("climatezone","dac","ev_wtp_pc","heatpump_wtp_pc","induction_dv","wt_ca",
+               "peer_EV","peer_HP","peer_IC",
+               "PV","PS","EV","HP","IC")
+    
+    model1vars <- setdiff(names(da_r), tract)
+    
+  }else if(i == 2){
+    # for EV, remove zone effect, tech
+    tract <- c("climatezone","dac","solstor_wtp_dv","heatpump_wtp_pc","induction_dv","wt_ca",
+               "peer_IC","peer_HP","peer_PV",
+               "PV","PS","EV","HP","IC")
+    model1vars <- setdiff(names(da_r), tract)
+    
+  }else if(i == 3){
+    # for HP, remove zone effect, tech, heating/cooling type
+    tract <- c("climatezone","dac","ev_wtp_pc","solstor_wtp_dv","induction_dv","wt_ca",
+               "peer_EV","peer_IC","peer_PV",
+               "PV","PS","EV","HP","IC","primary_heating_type","primary_cooling_type")
+    model1vars <- setdiff(names(da_r), tract)
+    
+  }else{
+    # for IC, remove zone effect, tech, cooking type
+    tract <- c("climatezone","dac","ev_wtp_pc","solstor_wtp_dv","heatpump_wtp_pc","wt_ca",
+               "peer_EV","peer_HP","peer_PV",
+               "PV","PS","EV","HP","IC","kitchen_range_type")
+    model1vars <- setdiff(names(da_r), tract)
+  }
+  
+  da_r <- da_r %>% 
+    mutate(across(c("PV","PS","EV","HP","IC"), as.factor))
+  
+  return(list(da_r, model1vars))
 }
 
 

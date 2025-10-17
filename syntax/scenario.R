@@ -101,6 +101,282 @@ for(i in 1:5){
   
 }
 
+final <- data.frame()
+for(i in 1:5){
+  tp <- dplyr::bind_rows(effect[(2*i-1):(2*i)]) %>% 
+                mutate(
+                  peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE),
+                  home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
+                ) %>%
+                dplyr::select(-ends_with(c("New","Older","peer","none"))) %>% 
+    pivot_longer(cols = c(Effect, MRP, Final), names_to = "key", values_to = "value") %>% 
+    mutate(key = factor(key, levels = c("MRP","Effect","Final"))) %>% 
+    filter(key == "Final") %>% 
+    dplyr::select(GEOID, class, value)
+  
+  final <- rbind(tp, final)
+}
+
+CA_c <- CA_t %>% 
+  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
+  group_by(county) %>% 
+  summarise(geometry = st_union(geometry))
+
+
+f3 <- CA_t %>% 
+  dplyr::select(GEOID) %>% 
+  left_join(final %>% 
+              separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
+  
+  filter(tech != "PV") %>% 
+  mutate(
+    tech = recode(tech,
+                  "PS" = "PV + Storage",
+                  "IC" = "Induction stoves",
+                  "HP" = "Heat pumps",
+                  "EV" = "Electric vehicles",
+                  "PV" = "Photovoltaics"),
+    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>% 
+  
+  na.omit() %>% 
+  ggplot() +
+  geom_sf(fill = "white", color = "gray0") + # US border
+  geom_sf(aes(fill = value), color = NA, size = 0.3) +
+  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
+  facet_grid(scen~tech, switch = "y") +
+  
+  theme_minimal() +
+  # scale_fill_distiller(palette = "RdBu", direction = -1) +
+  scale_fill_viridis_c(option = "magma") +
+  
+  labs(title = "Final adoption by scenario", fill = "Adoption") +
+  
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+
+ggsave("./fig/f3.png",
+       f3,
+       width = 12, height = 8)
+
+
+### moran's I 
+moran_by_class <- CA_t[!st_is_empty(CA_t), ] %>% 
+  left_join(final, by = "GEOID") %>%
+  group_split(class) %>%
+  map_df(function(df) {
+    # Remove rows with NA in value
+    df_clean <- df %>% filter(!is.na(value))
+    
+    # Skip if fewer than 2 observations
+    if (nrow(df_clean) < 2) {
+      return(tibble(
+        class = unique(df$class),
+        SI = NA_real_,
+        p_value = NA_real_,
+        note = "Too few observations"
+      ))
+    }
+    
+
+    # Create spatial weights for this subset
+    nb <- poly2nb(df_clean, queen = TRUE)
+    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+    
+    # Run Moran's I permutation test
+    test <- moran.mc(df_clean$value, listw = lw, nsim = 999, zero.policy = TRUE)
+    
+    # Return results
+    tibble(
+      class = unique(df$class),
+      SI = test$statistic,
+      p_value = test$p.value,
+      note = NA_character_
+    )
+  })
+
+
+### only urban
+la_metro_geoids <- c(
+  "06037",  # Los Angeles
+  "06059"  # Orange
+)
+
+bay_area_geoids <- c(
+  "06075",  # San Francisco
+  "06081",  # San Mateo
+  "06085"  # Santa Clara
+)
+
+
+
+moran_by_la <- CA_t %>% 
+  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
+  filter(county %in% la_metro_geoids) %>% 
+  left_join(final, by = "GEOID") %>%
+  group_split(class) %>%
+  map_df(function(df) {
+    # Remove rows with NA in value
+    df_clean <- df %>% filter(!is.na(value))
+    
+    # Skip if fewer than 2 observations
+    if (nrow(df_clean) < 2) {
+      return(tibble(
+        class = unique(df$class),
+        SI = NA_real_,
+        p_value = NA_real_,
+        note = "Too few observations"
+      ))
+    }
+    
+    # Create spatial weights for this subset
+    nb <- poly2nb(df_clean, queen = TRUE)
+    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+    
+    # Run Moran's I permutation test
+    test <- moran.mc(df_clean$value, listw = lw, nsim = 999, zero.policy = TRUE)
+    
+    # Return results
+    tibble(
+      class = unique(df$class),
+      SI = test$statistic,
+      p_value = test$p.value,
+      note = NA_character_
+    )
+  })
+
+
+moran_by_bay <- CA_t %>% 
+  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
+  filter(county %in% bay_area_geoids) %>% 
+  left_join(final, by = "GEOID") %>%
+  group_split(class) %>%
+  map_df(function(df) {
+    # Remove rows with NA in value
+    df_clean <- df %>% filter(!is.na(value))
+    
+    # Skip if fewer than 2 observations
+    if (nrow(df_clean) < 2) {
+      return(tibble(
+        class = unique(df$class),
+        SI = NA_real_,
+        p_value = NA_real_,
+        note = "Too few observations"
+      ))
+    }
+    
+    # Create spatial weights for this subset
+    nb <- poly2nb(df_clean, queen = TRUE)
+    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+    
+    # Run Moran's I permutation test
+    test <- moran.mc(df_clean$value, listw = lw, nsim = 999, zero.policy = TRUE)
+    
+    # Return results
+    tibble(
+      class = unique(df$class),
+      SI = test$statistic,
+      p_value = test$p.value,
+      note = NA_character_
+    )
+  })
+
+
+f6b <- moran_by_class %>% 
+  mutate(area = "State") %>% 
+  rbind(
+    moran_by_la %>% 
+      mutate(area = "LA"),
+    moran_by_bay %>% 
+      mutate(area = "Bay")
+  ) %>% 
+  filter(!is.na(SI)) %>%
+  separate(class, into = c("tech", "scenario"), sep = "_", convert = TRUE) %>%
+  mutate(tech = fct_reorder(tech, SI)) %>%
+  ggplot(aes(x = scenario, y = SI, fill = tech)) +
+  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
+  geom_text(aes(label = round(SI, 2)), 
+            position = position_dodge(width = 0.7), 
+            vjust = -0.5, size = 3.5) +
+  facet_wrap(~area, nrow = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "Spatial Inequality",
+    x = "",
+    y = "Moran's I",
+    fill = "Technology"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    
+    strip.placement = "outside", # Keep labels on the outside
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  ) 
+
+
+f6a <- CA_t %>% 
+  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
+  filter(county %in% c(la_metro_geoids, bay_area_geoids)) %>% 
+  ggplot() +
+  geom_sf(fill = "white", color = "gray0") + # US border
+  geom_sf(aes(fill = estimate/1000), color = NA, size = 0.3) +
+  geom_sf(data = CA_c, fill = NA, color = "gray40", linewidth = 0.1) +
+  
+  theme_minimal() +
+  # scale_fill_distiller(palette = "RdBu", direction = -1) +
+  scale_fill_viridis_c(option = "magma") +
+  
+  labs(title = "Urban Areas in CA", fill = "Population (k)") +
+  
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank())
+
+
+f6 <- ggarrange(f6a, f6b, nrow = 1)
+ggsave("./fig/f6.png",
+       f6,
+       width = 12, height = 8)
 
 
 select_var <- list(c("peer_effect","home_age"),
@@ -177,7 +453,7 @@ burden <- effect[[9]] %>% # PS optimistic
   mutate(demand = increase*estimate/1000) # in GWh
 
 
-CA_t %>% 
+f7a <- CA_t %>% 
   dplyr::select(GEOID) %>% 
   left_join(burden, by = "GEOID") %>% 
   ggplot() +
@@ -188,7 +464,7 @@ CA_t %>%
   # scale_fill_distiller(palette = "RdBu", direction = -1) +
   scale_fill_viridis_c(option = "magma") +
   
-  labs(title = "Adoption impact", fill = "Grid demand\nincrease(GWh)") +
+  labs(title = "Impact on residential demand by tract", fill = "Grid demand\nincrease (GWh)") +
   theme(legend.position = "right",
         # legend.text=element_text(size=6),
         # legend.key.size = unit(0.3, 'cm'),
@@ -198,6 +474,29 @@ CA_t %>%
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
         plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
+
+f7b <- burden %>% 
+  left_join(dac_tract, by = "GEOID") %>% 
+  group_by(sample) %>%
+  summarise(mean_increase = mean(demand, na.rm = T), .groups = "drop") %>%
+  mutate(DAC = ifelse(sample == 0, "Non-DAC", "DAC"),
+         DAC = factor(DAC, levels = c("DAC", "Non-DAC"))) %>% 
+  ggplot(aes(x = DAC, y = mean_increase, fill = DAC)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = round(mean_increase, 3)), vjust = -0.5, size = 4) +
+  scale_fill_manual(values = c("DAC" = "#E66101", "Non-DAC" = "#5E9ACF")) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "Grid demand increase by tract",
+    x = "",
+    y = "Mean increase (GWh/tract)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 0, hjust = 0.5)
+  )
+
 
 burden_mean <- effect[[9]] %>% # PS optimistic
   left_join(mrp %>% 
@@ -219,18 +518,18 @@ burden_mean <- effect[[9]] %>% # PS optimistic
   mutate(increase = PV_increase+EV_increase+HP_increase) # in MWh
 
 
-CA_t %>% 
+f7c <- CA_t %>% 
   dplyr::select(GEOID) %>% 
   left_join(burden_mean, by = "GEOID") %>% 
   ggplot() +
   geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = increase), color = NA, size = 0.3) +
+  geom_sf(aes(fill = increase/7*100), color = NA, size = 0.3) +
   
   theme_minimal() +
   # scale_fill_distiller(palette = "RdBu", direction = -1) +
   scale_fill_viridis_c(option = "magma") +
   
-  labs(title = "Intervention impact", fill = "Grid demand\nincrease(MWh/HH)") +
+  labs(title = "Impact on demand by household", fill = "Grid demand\nincrease (%)") +
   theme(legend.position = "right",
         # legend.text=element_text(size=6),
         # legend.key.size = unit(0.3, 'cm'),
@@ -241,6 +540,37 @@ CA_t %>%
         panel.grid.major = element_blank(),
         plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
 
+
+dac_tract <- read_csv(file = "../DAC/data/DAC_CA_censustract.csv") %>%
+  dplyr::select(GEOID, sample)
+
+f7d <- burden_mean %>% 
+  left_join(dac_tract, by = "GEOID") %>% 
+  group_by(sample) %>%
+  summarise(mean_increase = mean(increase, na.rm = T), .groups = "drop") %>%
+  mutate(DAC = ifelse(sample == 0, "Non-DAC", "DAC"),
+         DAC = factor(DAC, levels = c("DAC", "Non-DAC"))) %>% 
+  ggplot(aes(x = DAC, y = mean_increase/7*100, fill = DAC)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  geom_text(aes(label = round(mean_increase/7*100, 1)), vjust = -0.5, size = 4) +
+  scale_fill_manual(values = c("DAC" = "#E66101", "Non-DAC" = "#5E9ACF")) + 
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "Grid demand increase per household",
+    x = "",
+    y = "Mean increase (%)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.x = element_text(angle = 0, hjust = 0.5)
+  )
+
+f7 <- ggarrange(f7a, f7b, f7c, f7d, nrow = 2, ncol = 2, widths = c(1,0.6))
+
+ggsave("./fig/f7.png",
+       f7,
+       width = 12, height = 10)
 
 
 
@@ -265,7 +595,7 @@ d1 <- data %>%
   pivot_wider(names_from = scenario, values_from = adoption) %>% 
   mutate(
     future = Future - current,
-    low.subsidy = Lsubsidy - future,
+    low.subsidy = Lsubsidy - Future,
     high.subsidy = Hsubsidy - Lsubsidy
   ) %>% 
   dplyr::select(-Future,-Lsubsidy,-Hsubsidy)
@@ -329,53 +659,23 @@ for(k in 1:5){
 }
   
 
-df <- d1 %>% 
-  left_join(result, by = "tech") 
-
-stage_order <- c("Current", "Future", "Subsidy", "Higher subsidy", 
+stage_order <- c("Current", "Future", "Subsidy", "More subsidy", 
                  "Peer effects", "Home built after 2020", "Range", "Fast charger")
 
-
-# df_long <- df %>%
-#   pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
-#   mutate(stage = factor(stage, levels = stage_order)) %>% 
-#   group_by(tech) %>%
-#   mutate(
-#     value = replace_na(value, 0),
-#     offset = cumsum(lag(value, default = 0))  # cumulative offset
-#   ) %>% 
-#   mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC")))
-# 
-# # Plot
-# ggplot(df_long, aes(x = tech, y = value, fill = stage)) +
-#   geom_bar(stat = "identity", position = position_stack(vjust = 1), aes(y = value, ymin = offset, ymax = offset + value)) +
-#   geom_rect(aes(xmin = as.numeric(factor(tech)) - 0.4,
-#                 xmax = as.numeric(factor(tech)) + 0.4,
-#                 ymin = offset,
-#                 ymax = offset + value,
-#                 fill = stage),
-#             color = "black") +
-#   labs(title = "Step-wise Adoption Contributions by Tech",
-#        x = "Technology",
-#        y = "Adoption Contribution",
-#        fill = "Stage") +
-#   theme_minimal()
-
-
-df_long <- df %>%
+df_long <- d1 %>% 
+  left_join(result, by = "tech")  %>%
   pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
   mutate(stage = recode(stage,
                         "current" = "Current",
                         "future" = "Future",
                         "low.subsidy" = "Subsidy",
-                        "high.subsidy" = "Higher subsidy",
+                        "high.subsidy" = "More subsidy",
                         "peer" = "Peer effects",
                         "home_age" = "Home built after 2020",
                         "rangeanxiety" = "Range",
                         "charging_5mile" = "Fast charger")) %>% 
   
   mutate(stage = factor(stage, levels = stage_order)) %>% 
-  
   group_by(tech) %>%
   mutate(
     value = replace_na(value, 0),
@@ -383,39 +683,60 @@ df_long <- df %>%
     end = start + value
   ) %>% 
   mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC"))) %>% 
-  mutate(scene = "Optimistic") %>% 
-  filter(value >0)
+  mutate(scene = "Optimistic") 
 
 
-
-
-
-dff <- df_long %>%
+dff <- df_long %>% 
+  filter(value >0) %>% 
   mutate(across(where(is.numeric), ~ .x * 100)) %>% 
   group_by(tech) %>%
   mutate(id = row_number(),
          label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
   ungroup() %>% # Ungrouping is good practice after mutations
-  mutate(class = ifelse(stage %in% c("Current","Future"), "Natural increase",
-                        ifelse(stage %in% c("Subsidy","Higher subsidy"), "Policy intervention",
+  mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
+                        ifelse(stage %in% c("Subsidy","More subsidy"), "Policy intervention",
                                "Time variant")),
-         class = factor(class, levels = c("Natural increase","Policy intervention","Time variant")))
+         class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
 
 
 segment_data <- dff %>%
   group_by(tech) %>%
-  filter(id < max(id))
+  filter(id < max(id)) %>% 
+  filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) 
 
 hlines <- tibble::tribble(
   ~tech, ~y_intercept, ~line_label,
-  "PS", 20, "Base: 0.20",
-  "EV", 42, "Base: 0.42",
-  "HP", 46,   "Base: 46" # This line will not appear as there is no "HP" data
+  "PV + Storage", 20, "Base: 0.20",
+  "Electric vehicles", 42, "Base: 0.42",
+  "Heat pumps", 46,   "Base: 46" # This line will not appear as there is no "HP" data
 ) %>% 
-  mutate(tech = factor(tech, levels = c("PS","EV","HP")))
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps")))
+
+
+
+error_data_opt <- data.frame(tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
+                              x = c(7,9,6,7), 
+                              ymin = c(7,12,12,13), 
+                              ymax = c(13,35,39,28),
+                              text = c(7,23,27,15),
+                              xmin = c(4.5,6,4,4.7)) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
+
 
 opt_result <- dff %>% 
   filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) %>% 
   ggplot(aes(x = stage)) +
   
   # Draw the cascade bars using geom_rect
@@ -437,6 +758,18 @@ opt_result <- dff %>%
                color = "gray40",
                linewidth = 0.75) +
   
+  geom_errorbar(data = error_data_opt,
+                aes(x = x, ymin = ymin, ymax = ymax),
+                width = 0.2,
+                color = "red",
+                linewidth = 1) +  # dynamically inserted arrow
+
+  geom_text(data = error_data_opt,
+            aes(x = xmin, y = ymin, label = paste0("Impact: ", text)),
+            size = 4,
+            hjust = 0,
+            fontface = "bold") +
+
   # Facet by 'tech' to create separate charts for PV and PS
   facet_wrap(~ tech, scales = "free_x",  nrow = 1) +
   
@@ -444,7 +777,7 @@ opt_result <- dff %>%
   scale_y_continuous(labels = scales::comma) +
   labs(
     title = "",
-    x = "Stage",
+    x = "",
     y = "Cumulative Adoption (%)",
     fill = ""
   ) +
@@ -460,196 +793,6 @@ opt_result <- dff %>%
     panel.grid.minor.x = element_blank()
   )
 
-ggsave("./fig/opt_result.png",
-       opt_result,
-       width = 12, height = 8)
-
-
-### DAC 
-d1_dac <- data %>% 
-  group_by(dac) %>% 
-  summarise(across(
-    .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
-    .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
-  )) %>% 
-  gather(key, adoption, -dac) %>% 
-  mutate(
-    tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
-    scenario = case_when(
-      !str_detect(key, "^future") ~ "current",
-      str_detect(key, "(_\\d{1}$)|(PV$)") ~ "Future",
-      str_detect(key, "_\\d{2}$") ~ "Lsubsidy",
-      str_detect(key, "_\\d{3}$") ~ "Hsubsidy",
-      TRUE ~ "future"  # fallback for keys like "future_PV"
-    )
-  ) %>% 
-  dplyr::select(-key) %>%
-  pivot_wider(names_from = scenario, values_from = adoption) %>% 
-  mutate(
-    future = Future - current,
-    low.subsidy = Lsubsidy - future,
-    high.subsidy = Hsubsidy - Lsubsidy
-  ) %>% 
-  dplyr::select(-Future,-Lsubsidy,-Hsubsidy) %>% 
-  mutate(dac = ifelse(dac == "0", "Non_DAC", "DAC"))
-
-
-### optimistic scenarios
-select_scene <- list(c("home_age","peer_PV"),
-                   c("home_age","peer_EV","charging_5mile_f","rangeanxiety"),
-                   c("peer_HP"),
-                   c("home_age","peer_IC"),
-                   c("home_age","peer_PV"))
-
-rates <- list(c(0,0.2,-0.14,-0.23),
-              c(0,0.2,-0.04,-0.26,0.32,-2),
-              c(0,-0.25),
-              c(0,0.2,0,-0.17),
-              c(0,0.2,-0.14,-0.23))
-
-
-result <- data.frame()
-for(k in 1:5){
-  
-  b_ev <- mreg_dac(read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
-                 data_process(ev = c("Fully electric")) %>% 
-                 data_clean(1), 
-                
-               remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
-                          "education","employment"),
-               scenario = select_scene[[k]],
-               i = k,
-               future = fut[[k]][1])
-
-  
-  df <- b_ev %>% t() %>% 
-    as.data.frame() %>% 
-    slice(-1) %>% 
-    mutate(var = row.names(.)) %>% 
-    cbind(tibble(rate = rates[[k]])) %>% 
-    mutate(non_DAC = `0`*rate,
-           DAC = `1`*rate) 
-  
-  rd <- df %>%
-    summarise(
-      peer            = sum(non_DAC[str_detect(var, "peer")], na.rm = TRUE),
-      home_age            = sum(non_DAC[str_detect(var, "home_age")], na.rm = TRUE),
-      rangeanxiety    = sum(non_DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
-      charging_5mile  = sum(non_DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
-    ) %>% 
-    mutate(tech = ipt[k],
-           dac = "Non_DAC") %>% 
-    rbind(
-      df %>%
-        summarise(
-          peer            = sum(DAC[str_detect(var, "peer")], na.rm = TRUE),
-          home_age            = sum(DAC[str_detect(var, "home_age")], na.rm = TRUE),
-          rangeanxiety    = sum(DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
-          charging_5mile  = sum(DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
-        ) %>% 
-        mutate(tech = ipt[k],
-               dac = "DAC") 
-    )
-  
-  result <- rbind(rd, result)
-}
-
-
-df <- d1_dac %>% 
-  left_join(result, by = c("tech", "dac")) 
-
-stage_order <- c("current", "future", "low.subsidy", "high.subsidy", 
-                 "peer", "home_age", "rangeanxiety", "charging_5mile")
-
-df_long <- df %>%
-  pivot_longer(cols = -c("dac","tech"), names_to = "stage", values_to = "value") %>%
-  mutate(stage = factor(stage, levels = stage_order)) %>% 
-  
-  group_by(dac, tech) %>%
-  mutate(
-    value = replace_na(value, 0),
-    start = cumsum(lag(value, default = 0)),  # cumulative start
-    end = start + value
-  ) %>% 
-  mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC"))) %>% 
-  mutate(scene = "Optimistic")
-
-
-dff <- df_long %>%
-  mutate(across(where(is.numeric), ~ .x * 100)) %>% 
-  group_by(dac, tech) %>%
-  mutate(id = row_number(),
-         label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
-  ungroup() %>% # Ungrouping is good practice after mutations
-  mutate(class = ifelse(stage %in% c("current","future"), "Natural increase",
-                        ifelse(stage %in% c("low.subsidy","high.subsidy"), "Policy intervention",
-                               "Others")),
-         class = factor(class, levels = c("Natural increase","Policy intervention","Others")))
-
-segment_data <- dff %>%
-  group_by(dac, tech) %>%
-  filter(id < max(id)) %>% 
-  filter(tech != "PV")
-
-hlines <- tibble::tribble(
-  ~tech, ~y_intercept, ~line_label,
-  "PS", 20, "Base: 0.20",
-  "EV", 42, "Base: 0.42",
-  "HP", 46,   "Base: 46" # This line will not appear as there is no "HP" data
-) %>% 
-  mutate(tech = factor(tech, levels = c("PS","EV","HP")))
-
-
-dac_result <- dff %>% 
-  filter(tech != "PV") %>% 
-  ggplot(aes(x = stage)) +
-  
-  # Draw the cascade bars using geom_rect
-  geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = class)) +
-  
-  geom_hline(data = hlines, aes(yintercept = y_intercept), 
-             color = "darkred", linetype = "dashed", linewidth = 1) +
-  
-  # Add labels inside the bars
-  geom_text(aes(x = id, y = end + 2, label = label_val),
-            color = "black",
-            fontface = "bold",
-            size = 4) +
-
-  geom_segment(data = segment_data,
-               aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
-               color = "gray40",
-               linewidth = 0.75) +
-  
-  # Facet by 'tech' to create separate charts for PV and PS
-  facet_grid(dac ~ tech, scales = "free_x") +
-  
-  coord_flip() +
-  
-  # Format labels and titles
-  scale_y_continuous(labels = scales::comma) +
-  labs(
-    title = "",
-    x = "Stage",
-    y = "Cumulative Adoption (%)",
-    fill = ""
-  ) +
-  
-  # Customize the theme for better readability
-  theme_minimal(base_size = 12) +
-  theme(
-    axis.text.x = element_text(),
-    plot.title = element_text(face = "bold", size = 16),
-    legend.position = "bottom",
-    strip.text = element_text(size = 14, face = "bold"),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor.y = element_blank()
-  )
-
-ggsave("./fig/dac_result.png",
-       dac_result,
-       width = 12, height = 8)
-
 
 ### pessimistic scenarios
 tech <- c("PV","EV","HP","IC","PS")
@@ -662,10 +805,10 @@ select_var <- list(c("peer","home_age"),
 
 
 rates_p <- list(c(0,0.09,0,-0.18), #new, newer, peer, none
-              c(0, 0.09, -1,0.16,0,-0.15), #range, charging, peer, none
-              c(0,-0.11),
-              c(0, 0.09, 0,-0.07),
-              c(0,0.09,0,-0.18))
+                c(0, 0.09, -1,0.16,0,-0.15), #range, charging, peer, none
+                c(0,-0.11),
+                c(0, 0.09, 0,-0.07),
+                c(0,0.09,0,-0.18))
 
 result_p <- data.frame()
 for(k in 1:5){
@@ -699,43 +842,20 @@ for(k in 1:5){
 }
 
 
-df_p <- d1 %>% 
+df_long_p <- d1 %>% 
   dplyr::select(-high.subsidy) %>% 
-  left_join(result_p, by = "tech") 
-
-stage_order_p <- c("current", "future", "low.subsidy", 
-                 "peer", "home_age", "rangeanxiety", "charging_5mile")
-
-
-# df_long <- df %>%
-#   pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
-#   mutate(stage = factor(stage, levels = stage_order)) %>% 
-#   group_by(tech) %>%
-#   mutate(
-#     value = replace_na(value, 0),
-#     offset = cumsum(lag(value, default = 0))  # cumulative offset
-#   ) %>% 
-#   mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC")))
-# 
-# # Plot
-# ggplot(df_long, aes(x = tech, y = value, fill = stage)) +
-#   geom_bar(stat = "identity", position = position_stack(vjust = 1), aes(y = value, ymin = offset, ymax = offset + value)) +
-#   geom_rect(aes(xmin = as.numeric(factor(tech)) - 0.4,
-#                 xmax = as.numeric(factor(tech)) + 0.4,
-#                 ymin = offset,
-#                 ymax = offset + value,
-#                 fill = stage),
-#             color = "black") +
-#   labs(title = "Step-wise Adoption Contributions by Tech",
-#        x = "Technology",
-#        y = "Adoption Contribution",
-#        fill = "Stage") +
-#   theme_minimal()
-
-
-df_long_p <- df_p %>%
+  left_join(result_p, by = "tech")  %>%
   pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
-  mutate(stage = factor(stage, levels = stage_order_p)) %>% 
+  mutate(stage = recode(stage,
+                        "current" = "Current",
+                        "future" = "Future",
+                        "low.subsidy" = "Subsidy",
+                        "high.subsidy" = "More subsidy",
+                        "peer" = "Peer effects",
+                        "home_age" = "Home built after 2020",
+                        "rangeanxiety" = "Range",
+                        "charging_5mile" = "Fast charger")) %>% 
+  mutate(stage = factor(stage, levels = stage_order)) %>% 
   
   group_by(tech) %>%
   mutate(
@@ -746,27 +866,408 @@ df_long_p <- df_p %>%
   mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC"))) %>% 
   mutate(scene = "Pessimistic")
 
+
+dff <- df_long_p %>% 
+  filter(value >0) %>% 
+  mutate(across(where(is.numeric), ~ .x * 100)) %>% 
+  group_by(tech) %>%
+  mutate(id = row_number(),
+         label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
+  ungroup() %>% # Ungrouping is good practice after mutations
+  mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
+                        ifelse(stage %in% c("Subsidy"), "Policy intervention",
+                               "Time variant")),
+         class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
+
+
+segment_data <- dff %>%
+  group_by(tech) %>%
+  filter(id < max(id)) %>% 
+  filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) 
+
+hlines <- tibble::tribble(
+  ~tech, ~y_intercept, ~line_label,
+  "PV + Storage", 20, "Base: 0.20",
+  "Electric vehicles", 42, "Base: 0.42",
+  "Heat pumps", 46,   "Base: 46" # This line will not appear as there is no "HP" data
+) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps")))
+
+error_data_pess <- data.frame(tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
+                              x = c(6,8,5,6), 
+                              ymin = c(7,12,12,13), 
+                              ymax = c(9.7,24,20,16),
+                              text = c(3,11,8,3),
+                              xmin = c(4.2,5.5,3.5,4.2)) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
+
+pess_result <- dff %>% 
+  filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) %>% 
+  ggplot(aes(x = stage)) +
+  
+  # Draw the cascade bars using geom_rect
+  geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = class)) +
+  
+  geom_hline(data = hlines %>% 
+               filter(tech != "PV"), aes(yintercept = y_intercept), 
+             color = "darkred", linetype = "dashed", linewidth = 1) +
+  
+  # Add labels inside the bars
+  geom_text(aes(x = id, y = end + 2, label = label_val),
+            color = "black",
+            fontface = "bold",
+            size = 4) +
+  
+  geom_segment(data = segment_data %>% 
+                 filter(tech != "PV"),
+               aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
+               color = "gray40",
+               linewidth = 0.75) +
+  
+  
+  geom_errorbar(data = error_data_pess,
+                aes(x = x, ymin = ymin, ymax = ymax),
+                width = 0.2,
+                color = "red",
+                linewidth = 1) +  # dynamically inserted arrow
+  
+  geom_text(data = error_data_pess,
+            aes(x = xmin, y = ymin, label = paste0("Impact: ", text)),
+            size = 4,
+            hjust = 0,
+            fontface = "bold") +
+  
+  # Facet by 'tech' to create separate charts for PV and PS
+  facet_wrap(~ tech, scales = "free_x",  nrow = 1) +
+  
+  # Format labels and titles
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "",
+    x = "",
+    y = "Cumulative Adoption (%)",
+    fill = ""
+  ) +
+  
+  # Customize the theme for better readability
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.position = "bottom",
+    strip.text = element_text(size = 14, face = "bold"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+
+f2 <- ggarrange(opt_result, pess_result, nrow = 2,
+          common.legend = T, legend = "bottom",
+          heights = c(1,1.1),
+          labels = c("A", "B"),  # Adds labels to plots
+          label.x = 0,        # Adjust horizontal position of labels
+          label.y = 1,        # Adjust vertical position of labels
+          font.label = list(size = 14, face = "bold")
+          )
+ggsave("./fig/f2.png",
+       f2,
+       width = 12, height = 10)
+
+
 ### opt vs. pessi plots
-df_long %>% 
+com_op <- df_long %>% 
   rbind(df_long_p) %>% 
   mutate(scene = factor(scene, levels = rev(c("Optimistic","Pessimistic")))) %>% 
+  filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) %>% 
+  
   ggplot(aes(y = scene, xmin = start, xmax = end, fill = stage)) +
   geom_rect(aes(xmin = start, xmax = end, ymin = as.numeric(factor(scene)) - 0.4,
                 ymax = as.numeric(factor(scene)) + 0.4),
             color = "black") +
   facet_wrap(~tech, switch = "y", nrow = 5) +
-  labs(title = "Step-wise Adoption Contributions by Tech",
+  labs(title = "",
        x = "Cumulative Adoption",
        y = "",
-       fill = "Stage") +
+       fill = "") +
   theme_minimal() +
   theme(
-    axis.text.y = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
     plot.title = element_text(face = "bold", size = 16),
-    legend.position = "right",
-    strip.text = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    
+    strip.placement = "outside", # Keep labels on the outside
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+    
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
+  ) +
+  guides(fill = guide_legend(nrow = 1))
+
+
+ggsave("./fig/com_op.png",
+       com_op,
+       width = 12, height = 6)
+
+
+
+### DAC 
+d1_dac <- data %>% 
+  group_by(dac) %>% 
+  summarise(across(
+    .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
+    .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
+  )) %>% 
+  gather(key, adoption, -dac) %>% 
+  mutate(
+    tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
+    scenario = case_when(
+      !str_detect(key, "^future") ~ "current",
+      str_detect(key, "(_\\d{1}$)|(PV$)") ~ "Future",
+      str_detect(key, "_\\d{2}$") ~ "Lsubsidy",
+      str_detect(key, "_\\d{3}$") ~ "Hsubsidy",
+      TRUE ~ "future"  # fallback for keys like "future_PV"
+    )
+  ) %>% 
+  dplyr::select(-key) %>%
+  pivot_wider(names_from = scenario, values_from = adoption) %>% 
+  mutate(
+    future = Future - current,
+    low.subsidy = Lsubsidy - Future,
+    high.subsidy = Hsubsidy - Lsubsidy
+  ) %>% 
+  dplyr::select(-Future,-Lsubsidy,-Hsubsidy) %>% 
+  mutate(dac = ifelse(dac == "0", "Non_DAC", "DAC"))
+
+
+### optimistic scenarios
+select_scene <- list(c("home_age","peer_PV"),
+                   c("home_age","peer_EV","charging_5mile_f","rangeanxiety"),
+                   c("peer_HP"),
+                   c("home_age","peer_IC"),
+                   c("home_age","peer_PV"))
+
+rates <- list(c(0,0.2,-0.14,-0.23),
+              c(0,0.2,-0.04,-0.26,0.32,-2),
+              c(0,-0.25),
+              c(0,0.2,0,-0.17),
+              c(0,0.2,-0.14,-0.23))
+
+
+result_dac <- data.frame()
+for(k in 1:5){
+  
+  b_ev <- mreg_dac(read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+                 data_process(ev = c("Fully electric")) %>% 
+                 data_clean(1), 
+                
+               remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
+                          "education","employment"),
+               scenario = select_scene[[k]],
+               i = k,
+               future = fut[[k]][1])
+
+  
+  df <- b_ev[[1]] %>% t() %>% 
+    as.data.frame() %>% 
+    slice(-1) %>% 
+    mutate(var = row.names(.)) %>% 
+    cbind(tibble(rate = rates[[k]])) %>% 
+    mutate(non_DAC = `0`*rate,
+           DAC = `1`*rate) 
+  
+  rd <- df %>%
+    summarise(
+      peer            = sum(non_DAC[str_detect(var, "peer")], na.rm = TRUE),
+      home_age            = sum(non_DAC[str_detect(var, "home_age")], na.rm = TRUE),
+      rangeanxiety    = sum(non_DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
+      charging_5mile  = sum(non_DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+    ) %>% 
+    mutate(tech = ipt[k],
+           dac = "Non_DAC") %>% 
+    rbind(
+      df %>%
+        summarise(
+          peer            = sum(DAC[str_detect(var, "peer")], na.rm = TRUE),
+          home_age            = sum(DAC[str_detect(var, "home_age")], na.rm = TRUE),
+          rangeanxiety    = sum(DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
+          charging_5mile  = sum(DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+        ) %>% 
+        mutate(tech = ipt[k],
+               dac = "DAC") 
+    )
+  
+  result_dac <- rbind(rd, result_dac)
+}
+
+
+df_dac <- d1_dac %>% 
+  left_join(result_dac, by = c("tech", "dac")) 
+
+
+df_long <- df_dac %>%
+  pivot_longer(cols = -c("dac","tech"), names_to = "stage", values_to = "value") %>%
+  mutate(stage = recode(stage,
+                        "current" = "Current",
+                        "future" = "Future",
+                        "low.subsidy" = "Subsidy",
+                        "high.subsidy" = "More subsidy",
+                        "peer" = "Peer effects",
+                        "home_age" = "Home built after 2020",
+                        "rangeanxiety" = "Range",
+                        "charging_5mile" = "Fast charger")) %>% 
+  mutate(stage = factor(stage, levels = stage_order)) %>% 
+  
+  group_by(dac, tech) %>%
+  mutate(
+    value = replace_na(value, 0),
+    start = cumsum(lag(value, default = 0)),  # cumulative start
+    end = start + value
+  ) %>% 
+  mutate(tech = factor(tech, levels = c("PS","PV","EV","HP","IC"))) %>% 
+  mutate(scene = "Optimistic")
+
+
+dff <- df_long %>%
+  mutate(across(where(is.numeric), ~ .x * 100)) %>% 
+  group_by(dac, tech) %>%
+  mutate(id = row_number(),
+         label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
+  ungroup() %>% # Ungrouping is good practice after mutations
+  mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
+                        ifelse(stage %in% c("Subsidy","More subsidy"), "Policy intervention",
+                               "Time variant")),
+         class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
+
+segment_data <- dff %>%
+  group_by(dac, tech) %>%
+  filter(id < max(id)) %>% 
+  filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) 
+
+hlines <- tibble::tribble(
+  ~tech, ~y_intercept, ~line_label,
+  "PV + Storage", 20, "Base: 0.20",
+  "Electric vehicles", 42, "Base: 0.42",
+  "Heat pumps", 46,   "Base: 46" # This line will not appear as there is no "HP" data
+) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps")))
+
+
+error_data_dac <- data.frame(dac = "Non_DAC",
+                             tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
+                                               x = c(7,9,6,7), 
+                                               ymin = c(11.3,24.3,37.3,25.9), 
+                                               ymax = c(14.3,45,40.7,29.5),
+                                               xmin = c(7.5,8.5,6.5,7.5)) %>% 
+  mutate(text = round(ymax - ymin, 1)) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
+
+
+dac_result <- dff %>% 
+  filter(tech != "PV") %>% 
+  mutate(tech = recode(tech, 
+                       "PS" = "PV + Storage",
+                       "EV" = "Electric vehicles",
+                       "HP" = "Heat pumps",
+                       "IC" = "Induction stoves")) %>% 
+  mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) %>% 
+  ggplot(aes(x = stage)) +
+  
+  # Draw the cascade bars using geom_rect
+  geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = class)) +
+  
+  geom_hline(data = hlines, aes(yintercept = y_intercept), 
+             color = "darkred", linetype = "dashed", linewidth = 1) +
+  
+  geom_hline(data = error_data_dac %>% 
+               dplyr::select(-dac), aes(yintercept = ymin), 
+             color = "gray70", linetype = "dashed", linewidth = 1) +
+  
+  # Add labels inside the bars
+  geom_text(aes(x = id, y = end + 2, label = label_val),
+            color = "black",
+            fontface = "bold",
+            size = 4) +
+
+  # geom_segment(data = segment_data,
+  #              aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
+  #              color = "gray40",
+  #              linewidth = 0.75) +
+  
+  geom_errorbar(data = error_data_dac,
+                aes(x = x, ymin = ymin, ymax = ymax),
+                width = 0.5,
+                color = "red",
+                linewidth = 1) +  # dynamically inserted arrow
+  
+  
+  geom_text(data = error_data_dac,
+            aes(x = xmin, y = ymin, label = paste0(text)),
+            size = 4,
+            hjust = 0,
+            fontface = "bold") +
+  
+  # Facet by 'tech' to create separate charts for PV and PS
+  facet_grid(dac ~ tech, scales = "free_x", switch = "y") +
+  
+  coord_flip() +
+  
+  # Format labels and titles
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "",
+    x = "",
+    y = "Cumulative Adoption (%)",
+    fill = ""
+  ) +
+  
+  # Customize the theme for better readability
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.y = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.position = "bottom",
+    
+    strip.placement = "outside", # Keep labels on the outside
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=12, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+    
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank()
   )
+
+ggsave("./fig/dac_result.png",
+       dac_result,
+       width = 12, height = 6)
+
+
 
 

@@ -1676,8 +1676,8 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   return(list(reg, ds, dc, sum_fit))
 }
 
-
-mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
+### get the marginal effects for DAC
+mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, peer = NULL){
   
   # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
   # remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
@@ -1823,11 +1823,27 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
     colnames(contrasts(da_r[[var]])) <- levels(da_r[[var]])[1]
   }
   
-  da_r <- da_r %>% 
-    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
-  mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
-    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
+  # da_r <- da_r %>% 
+  #   mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
+  # mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
+  #   mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
   
+  if(!is.null(peer)){
+    
+    da_r <- da_r %>% 
+      mutate(across(starts_with("peer"), ~factor(.x, levels = rev(c("neighbor_peer","neighbor","peer","none"))))) %>% # avoid the sum contrast
+      mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
+      mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
+  }else{
+    
+    da_r <- da_r %>% 
+      mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
+      mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
+      mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
+    
+  }
+  
+
   if(i %in% c(1,5)){
     # for PV, remove zone effect, tech
     tract <- c("climatezone","dac","ev_wtp_pc","heatpump_wtp_pc","induction_dv","wt_ca",
@@ -1861,13 +1877,15 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   model1vars <- setdiff(model1vars, scenario)
   
   fvar <- as.formula(paste(ipt[i], " ~", paste(model1vars, collapse = " + "), 
-                           "+ (1|climatezone) + (1+",paste(scenario, collapse = " + "),
+                           "+ climatezone + (1+",paste(scenario, collapse = " + "),
                            "|dac)"))
   
   fit <- lmer(fvar, weights = wt_ca, data = da_r)
   # summary(fit)
   
-  return(ranef(fit)$dac)
+  tp <- sqrt(attr(ranef(fit, condVar=T)[[1]], "postVar"))*1.96 
+  
+  return(list(ranef(fit)$dac, tp))
 }
 
 

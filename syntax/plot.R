@@ -97,12 +97,12 @@ results <- result %>%
   
   )) %>% 
   mutate(rowname = case_when(
-    str_detect(rowname, "peer_.*none") ~ "spatial effect",
-    str_detect(rowname, "peer_.*peer") ~ "peer effect",
+    str_detect(rowname, "peer_.*none") ~ "neighbor",
+    str_detect(rowname, "peer_.*peer") ~ "peer",
     str_detect(rowname, "home_ageNewer") ~ "home after 2020",
     TRUE ~ rowname
   )) %>% 
-  mutate(domain = ifelse(str_detect(rowname,"income|education|race|ideology|pid|US|employment|effect"), "Social",
+  mutate(domain = ifelse(str_detect(rowname,"income|education|race|ideology|pid|US|employment|neighbor|peer"), "Social",
                            
                            ifelse(str_detect(rowname, "home|household"), "Housing",
                                   
@@ -124,9 +124,13 @@ results <- result %>%
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"))) 
 
 
-results %>% 
+feature_imp <- results %>% 
+  group_by(rowname, tech) %>% 
+  mutate(mean = mean(Overall)) %>% 
+  ungroup() %>% 
   ggplot() +
   geom_col(aes(y = reorder(rowname, desc(Overall)), x = Overall, fill = model), width = 0.7, position = position_dodge(0.8)) +
+  geom_point(aes(y = reorder(rowname, desc(Overall)), x = mean), color = "red", width = 0.7, position = position_dodge(0.8))+
   labs(y = "", x = "Importance (%)", fill = "", title = "") +
   facet_grid(domain ~ tech, space = "free", scale = "free", switch = "y") +
   theme_bw() +
@@ -136,7 +140,7 @@ results %>%
         
         strip.placement = "outside", # Keep labels on the outside
         strip.background =element_rect(fill="gray22",color="gray22"),
-        strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=12),
+        strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=12, face = "bold"),
         strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
         
         legend.position = "bottom",
@@ -144,5 +148,10 @@ results %>%
         axis.text.y = element_text(color = "black",family="Franklin Gothic Book",size=10),
         axis.title.x = element_text(color = "black",family="Franklin Gothic Book",size=12),
         plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = -0.03)) 
+
+
+ggsave("./fig/imp.png",
+       feature_imp,
+       width = 12, height = 12)
 
 

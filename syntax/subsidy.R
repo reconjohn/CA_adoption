@@ -88,7 +88,7 @@ opt <- data.frame(subsidy = c(12700, 12000, 11000, 1590),
                        "IC" = "Induction stoves")) %>% 
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 
-f5a <- curv %>% 
+f4a <- curv %>% 
   mutate(tech = recode(tech, 
                        "PS" = "PV + Storage",
                        "EV" = "Electric vehicles",
@@ -140,10 +140,10 @@ p <- curv %>%
 plot_data <- ggplot_build(p)
 
 smooth_values <- plot_data$data[[1]] %>%
-  select(x, y, group, PANEL) # Select relevant columns
+  dplyr::select(x, y, group, PANEL) # dplyr::select relevant columns
 
 panel_to_tech <- plot_data$layout$layout %>%
-  select(PANEL, tech)
+  dplyr::select(PANEL, tech)
 
 group_to_dac <- data.frame(
   dac = c("DAC","Non-DAC"),
@@ -155,7 +155,7 @@ group_to_dac <- data.frame(
 final_smooth_data <- smooth_values %>%
   left_join(panel_to_tech, by = "PANEL") %>%
   left_join(group_to_dac, by = c("group")) %>%
-  select(
+  dplyr::select(
     tech,
     dac,
     subsidy = x,
@@ -198,7 +198,7 @@ final_smooth_data %>%
 
 
 
-f5b <-final_smooth_data %>% 
+f4b <-final_smooth_data %>% 
   arrange(tech, dac, subsidy) %>%
   group_by(tech, dac) %>%
   mutate(
@@ -238,15 +238,15 @@ f5b <-final_smooth_data %>%
         plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = -0.03)) 
 
 
-f5 <- ggarrange(f5a, f5b, nrow = 2,
-                common.legend = T, legend = "bottom",
-                heights = c(1,1.1),
-                labels = c("A", "B"),  # Adds labels to plots
-                label.x = 0,        # Adjust horizontal position of labels
-                label.y = 1,        # Adjust vertical position of labels
-                font.label = list(size = 14, face = "bold")
-)
-ggsave("./fig/f5.png",
-       f5,
-       width = 12, height = 6)
+# f4 <- ggarrange(f4a, f4b, nrow = 2,
+#                 common.legend = T, legend = "bottom",
+#                 heights = c(1,1.1),
+#                 labels = c("A", "B"),  # Adds labels to plots
+#                 label.x = 0,        # Adjust horizontal position of labels
+#                 label.y = 1,        # Adjust vertical position of labels
+#                 font.label = list(size = 14, face = "bold")
+# )
+# ggsave("./fig/f5.png",
+#        f5,
+#        width = 12, height = 6)
 

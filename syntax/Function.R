@@ -58,6 +58,7 @@ library(fastDummies)
 library(caret)
 library(xgboost)
 library(tidytext)
+library(ggnewscale)
 options(tigris_use_cache = TRUE, tigris_class = "sf")
 
 # uploading library 

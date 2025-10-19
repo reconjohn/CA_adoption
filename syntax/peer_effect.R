@@ -394,7 +394,7 @@ for(k in 1:5){
   peer <- rbind(df, peer)
 }
 
-f4 <- peer %>%
+f4c <- peer %>%
   mutate(urban = ifelse(dac %in% c("Urban_DAC","Urban_Non_DAC"), "Urban", "Rural"),
          dac = ifelse(dac %in% c("Urban_DAC","Rural_DAC"), "DAC", "Non-DAC")) %>% 
   mutate(
@@ -450,8 +450,18 @@ f4 <- peer %>%
   ) 
 
 
+f4 <- ggarrange(
+  ggarrange(f4a, f4b, nrow = 2), f4c, nrow = 2,
+                heights = c(1,1),
+                labels = c("A", "B"),  # Adds labels to plots
+                label.x = 0,        # Adjust horizontal position of labels
+                label.y = 1,        # Adjust vertical position of labels
+                font.label = list(size = 14, face = "bold")
+)
+
+
 ggsave("./fig/f4.png",
        f4,
-       width = 12, height = 8)
+       width = 12, height = 12)
 
 

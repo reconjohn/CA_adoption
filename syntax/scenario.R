@@ -123,12 +123,13 @@ CA_c <- CA_t %>%
   summarise(geometry = st_union(geometry))
 
 
-f3 <- CA_t %>% 
+f3b <- CA_t %>% 
   dplyr::select(GEOID) %>% 
   left_join(final %>% 
               separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
   
   filter(tech != "PV") %>% 
+  filter(scen == "Optimistic") %>% 
   mutate(
     tech = recode(tech,
                   "PS" = "PV + Storage",
@@ -142,14 +143,81 @@ f3 <- CA_t %>%
   ggplot() +
   geom_sf(fill = "white", color = "gray0") + # US border
   geom_sf(aes(fill = value), color = NA, size = 0.3) +
+  scale_fill_viridis_c(option = "magma", name = "Adoption") +
+  new_scale_fill() +
+  
   geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
-  facet_grid(scen~tech, switch = "y") +
+  geom_sf(data = dac_sf %>% 
+            filter(sample == 1) %>% 
+            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
+  scale_fill_manual(values = c("DAC" = "white"),
+                    name = "") +
+  
+  facet_wrap(~tech, nrow = 1) +
   
   theme_minimal() +
   # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  scale_fill_viridis_c(option = "magma") +
+  # scale_fill_viridis_c(option = "magma") +
   
-  labs(title = "Final adoption by scenario", fill = "Adoption") +
+  labs(title = "", fill = "Adoption") +
+  
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_blank(),
+    legend.text = element_text(size = 10),
+    legend.position = "right",
+    
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  )
+
+
+f3c <- CA_t %>% 
+  dplyr::select(GEOID) %>% 
+  left_join(final %>% 
+              separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
+  
+  filter(tech != "PV") %>% 
+  filter(scen == "Pessimistic") %>% 
+  mutate(
+    tech = recode(tech,
+                  "PS" = "PV + Storage",
+                  "IC" = "Induction stoves",
+                  "HP" = "Heat pumps",
+                  "EV" = "Electric vehicles",
+                  "PV" = "Photovoltaics"),
+    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>% 
+  
+  na.omit() %>% 
+  ggplot() +
+  geom_sf(fill = "white", color = "gray0") + # US border
+  geom_sf(aes(fill = value), color = NA, size = 0.3) +
+  scale_fill_viridis_c(option = "magma", name = "Adoption") +
+  new_scale_fill() +
+  
+  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
+  geom_sf(data = dac_sf %>% 
+            filter(sample == 1) %>% 
+            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.2) +
+  scale_fill_manual(values = c("DAC" = "white"),
+                    name = "") +
+  
+  facet_wrap(~tech, nrow = 1) +
+  
+  theme_minimal() +
+  # scale_fill_distiller(palette = "RdBu", direction = -1) +
+  # scale_fill_viridis_c(option = "magma") +
+  
+  labs(title = "", fill = "Adoption") +
   
   theme(
     axis.text = element_text(size = 12),
@@ -170,10 +238,6 @@ f3 <- CA_t %>%
     panel.grid.minor.x = element_blank()
   )
 
-
-ggsave("./fig/f3.png",
-       f3,
-       width = 12, height = 8)
 
 
 ### moran's I 
@@ -429,6 +493,11 @@ for(i in 1:5){
 # PV: -4 MWh/HHyr
 # EV: 2 MWh/HHyr
 # HP: 2 MWh/HHyr
+
+dac_tract <- read_csv(file = "../DAC/data/DAC_CA_censustract.csv") %>%
+  dplyr::select(GEOID, sample)
+
+
 burden <- effect[[9]] %>% # PS optimistic
   left_join(mrp %>% 
               dplyr::select(GEOID, future_PS_0), by = "GEOID") %>% 
@@ -541,8 +610,6 @@ f7c <- CA_t %>%
         plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
 
 
-dac_tract <- read_csv(file = "../DAC/data/DAC_CA_censustract.csv") %>%
-  dplyr::select(GEOID, sample)
 
 f7d <- burden_mean %>% 
   left_join(dac_tract, by = "GEOID") %>% 
@@ -776,7 +843,7 @@ opt_result <- dff %>%
   # Format labels and titles
   scale_y_continuous(labels = scales::comma) +
   labs(
-    title = "",
+    title = "Optimistic scenario",
     x = "",
     y = "Cumulative Adoption (%)",
     fill = ""
@@ -955,7 +1022,7 @@ pess_result <- dff %>%
   # Format labels and titles
   scale_y_continuous(labels = scales::comma) +
   labs(
-    title = "",
+    title = "Pessimistic scenario",
     x = "",
     y = "Cumulative Adoption (%)",
     fill = ""
@@ -974,8 +1041,6 @@ pess_result <- dff %>%
 
 
 f2 <- ggarrange(opt_result, pess_result, nrow = 2,
-          common.legend = T, legend = "bottom",
-          heights = c(1,1.1),
           labels = c("A", "B"),  # Adds labels to plots
           label.x = 0,        # Adjust horizontal position of labels
           label.y = 1,        # Adjust vertical position of labels
@@ -983,7 +1048,9 @@ f2 <- ggarrange(opt_result, pess_result, nrow = 2,
           )
 ggsave("./fig/f2.png",
        f2,
-       width = 12, height = 10)
+       width = 12, height = 12)
+
+
 
 
 ### opt vs. pessi plots
@@ -1091,7 +1158,7 @@ for(k in 1:5){
   
   df <- b_ev[[1]] %>% t() %>% 
     as.data.frame() %>% 
-    slice(-1) %>% 
+    dplyr::slice(-1) %>% 
     mutate(var = row.names(.)) %>% 
     cbind(tibble(rate = rates[[k]])) %>% 
     mutate(non_DAC = `0`*rate,
@@ -1190,7 +1257,7 @@ error_data_dac <- data.frame(dac = "Non_DAC",
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 
 
-dac_result <- dff %>% 
+f3a <- dff %>% 
   filter(tech != "PV") %>% 
   mutate(tech = recode(tech, 
                        "PS" = "PV + Storage",
@@ -1264,10 +1331,16 @@ dac_result <- dff %>%
     panel.grid.minor.y = element_blank()
   )
 
-ggsave("./fig/dac_result.png",
-       dac_result,
-       width = 12, height = 6)
+f3 <- ggarrange(f3a, f3b, nrow = 2,
+                heights = c(1.5,1),
+                labels = c("A", "B"),  # Adds labels to plots
+                label.x = 0,        # Adjust horizontal position of labels
+                label.y = 1,        # Adjust vertical position of labels
+                font.label = list(size = 14, face = "bold")
+)
 
 
-
+ggsave("./fig/f3.png",
+       f3,
+       width = 12, height = 10)
 

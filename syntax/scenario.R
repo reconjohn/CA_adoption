@@ -34,31 +34,28 @@ tt %>%
         plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
 
 
-### scenario 
-effect <- list()
-for(i in seq_along(ipt)){
-  future <- fut[[i]]
-  scene <- c("Optimistic","Pessimistic")
-  
-  for(j in 1:2){
-    f_d <- final_ef_peer(data, i, future[j]) %>% 
-      mutate(class = paste0(ipt[i],"_",scene[j]))
-    
-    effect <- append(effect, list(f_d))
-    
-  }
-}
-
-
-df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","MRP","Final","class"), drop = FALSE])
-combined_df <- bind_rows(df_common)
-write_csv(combined_df, "./data/result.csv")
-
-
-
-save(effect, mrp, file = "./data/results.Rdata") # for official sharing
-load("./data/results.Rdata")
-
+# ### scenario 
+# effect <- list()
+# for(i in seq_along(ipt)){
+#   future <- fut[[i]]
+#   scene <- c("Optimistic","Pessimistic")
+#   
+#   for(j in 1:2){
+#     f_d <- final_ef_peer(data, i, future[j]) %>% 
+#       mutate(class = paste0(ipt[i],"_",scene[j]))
+#     
+#     effect <- append(effect, list(f_d))
+#     
+#   }
+# }
+# 
+# 
+# df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","MRP","Final","class"), drop = FALSE])
+# combined_df <- bind_rows(df_common)
+# write_csv(combined_df, "./data/result.csv")
+# 
+# 
+# save(effect, mrp, file = "./data/results.Rdata") # for official sharing
 
 
 ### mapping the final adoption 
@@ -137,23 +134,53 @@ f3b <- CA_t %>%
                   "HP" = "Heat pumps",
                   "EV" = "Electric vehicles",
                   "PV" = "Photovoltaics"),
-    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>% 
-  
+    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>%
   na.omit() %>% 
+  
+  st_intersection(dac_sf %>% 
+                    filter(sample == 1)) %>% 
+  st_collection_extract("POLYGON") %>%  # Remove geometry collections
+  filter(st_area(.) > units::set_units(1, "m^2")) %>%  # Remove tiny fragments
+  mutate(DAC = "DAC") %>% 
+  rbind(
+    CA_t %>% 
+      dplyr::select(GEOID) %>% 
+      left_join(final %>% 
+                  separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
+      
+      filter(tech != "PV") %>% 
+      filter(scen == "Optimistic") %>% 
+      mutate(
+        tech = recode(tech,
+                      "PS" = "PV + Storage",
+                      "IC" = "Induction stoves",
+                      "HP" = "Heat pumps",
+                      "EV" = "Electric vehicles",
+                      "PV" = "Photovoltaics"),
+        tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>%
+      na.omit() %>% 
+      
+      st_intersection(dac_sf %>% 
+                        filter(sample == 0)) %>% 
+      st_collection_extract("POLYGON") %>%  # Remove geometry collections
+      filter(st_area(.) > units::set_units(1, "m^2")) %>%  # Remove tiny fragments
+      mutate(DAC = "Non-DAC")
+  ) %>% 
+
   ggplot() +
   geom_sf(fill = "white", color = "gray0") + # US border
   geom_sf(aes(fill = value), color = NA, size = 0.3) +
   scale_fill_viridis_c(option = "magma", name = "Adoption") +
-  new_scale_fill() +
+  # new_scale_fill() +
   
-  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
-  geom_sf(data = dac_sf %>% 
-            filter(sample == 1) %>% 
-            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
-  scale_fill_manual(values = c("DAC" = "white"),
-                    name = "") +
+  geom_sf(data = CA_c, fill = NA, color = "gray50", linewidth = 0.05) +
+  # geom_sf(data = dac_sf %>% 
+  #           filter(sample == 1) %>% 
+  #           mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
+  # scale_fill_manual(values = c("DAC" = "gray80"),
+  #                   name = "") +
   
-  facet_wrap(~tech, nrow = 1) +
+  facet_grid(DAC~tech, switch = "y") +
   
   theme_minimal() +
   # scale_fill_distiller(palette = "RdBu", direction = -1) +
@@ -173,71 +200,14 @@ f3b <- CA_t %>%
     legend.text = element_text(size = 10),
     legend.position = "right",
     
-    strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    strip.placement = "outside", # Keep labels on the outside
+    # strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'black',family="Franklin Gothic Book",size=12, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
     
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   )
-
-
-f3c <- CA_t %>% 
-  dplyr::select(GEOID) %>% 
-  left_join(final %>% 
-              separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
-  
-  filter(tech != "PV") %>% 
-  filter(scen == "Pessimistic") %>% 
-  mutate(
-    tech = recode(tech,
-                  "PS" = "PV + Storage",
-                  "IC" = "Induction stoves",
-                  "HP" = "Heat pumps",
-                  "EV" = "Electric vehicles",
-                  "PV" = "Photovoltaics"),
-    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>% 
-  
-  na.omit() %>% 
-  ggplot() +
-  geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = value), color = NA, size = 0.3) +
-  scale_fill_viridis_c(option = "magma", name = "Adoption") +
-  new_scale_fill() +
-  
-  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
-  geom_sf(data = dac_sf %>% 
-            filter(sample == 1) %>% 
-            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.2) +
-  scale_fill_manual(values = c("DAC" = "white"),
-                    name = "") +
-  
-  facet_wrap(~tech, nrow = 1) +
-  
-  theme_minimal() +
-  # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  # scale_fill_viridis_c(option = "magma") +
-  
-  labs(title = "", fill = "Adoption") +
-  
-  theme(
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 12),
-    plot.title = element_text(face = "bold", size = 16),
-    
-    axis.text.x = element_blank(),
-    axis.text.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    legend.text = element_text(size = 10),
-    legend.position = "bottom",
-    
-    strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
-    
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
-  )
-
 
 
 ### moran's I 
@@ -381,7 +351,7 @@ f6b <- moran_by_class %>%
   facet_wrap(~area, nrow = 3) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   labs(
-    title = "Spatial Inequality",
+    title = "Spatial inequality",
     x = "",
     y = "Moran's I",
     fill = "Technology"
@@ -528,11 +498,19 @@ f7a <- CA_t %>%
   ggplot() +
   geom_sf(fill = "white", color = "gray0") + # US border
   geom_sf(aes(fill = demand), color = NA, size = 0.3) +
+  scale_fill_viridis_c(option = "magma", name = "Grid demand\nincrease (GWh)") +
+  new_scale_fill() +
+  
+  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
+  geom_sf(data = dac_sf %>% 
+            filter(sample == 1) %>% 
+            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
+  scale_fill_manual(values = c("DAC" = "gray80"),
+                    name = "") +
   
   theme_minimal() +
   # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  scale_fill_viridis_c(option = "magma") +
-  
+
   labs(title = "Impact on residential demand by tract", fill = "Grid demand\nincrease (GWh)") +
   theme(legend.position = "right",
         # legend.text=element_text(size=6),
@@ -542,7 +520,7 @@ f7a <- CA_t %>%
         axis.text.y = element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
-        plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
+        plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = 0))
 
 f7b <- burden %>% 
   left_join(dac_tract, by = "GEOID") %>% 
@@ -556,7 +534,7 @@ f7b <- burden %>%
   scale_fill_manual(values = c("DAC" = "#E66101", "Non-DAC" = "#5E9ACF")) + 
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   labs(
-    title = "Grid demand increase by tract",
+    title = "Grid demand increase",
     x = "",
     y = "Mean increase (GWh/tract)"
   ) +
@@ -566,37 +544,23 @@ f7b <- burden %>%
     axis.text.x = element_text(angle = 0, hjust = 0.5)
   )
 
-
-burden_mean <- effect[[9]] %>% # PS optimistic
-  left_join(mrp %>% 
-              dplyr::select(GEOID, future_PS_0), by = "GEOID") %>% 
-  mutate(PV_increase = (Final - future_PS_0)*-4) %>% 
-  dplyr::select(GEOID, PV_increase) %>% 
-  left_join(effect[[3]] %>% # EV optimistic
-              left_join(mrp %>% 
-                          dplyr::select(GEOID, future_EV_0), by = "GEOID") %>% 
-              mutate(EV_increase = (Final - future_EV_0)*2) %>% 
-              dplyr::select(GEOID, EV_increase),
-            by = "GEOID") %>% 
-  left_join(effect[[5]] %>% # HP optimistic
-              left_join(mrp %>% 
-                          dplyr::select(GEOID, future_HP_0), by = "GEOID") %>% 
-              mutate(HP_increase = (Final - future_HP_0)*2) %>% 
-              dplyr::select(GEOID, HP_increase),
-            by = "GEOID") %>% 
-  mutate(increase = PV_increase+EV_increase+HP_increase) # in MWh
-
-
 f7c <- CA_t %>% 
   dplyr::select(GEOID) %>% 
-  left_join(burden_mean, by = "GEOID") %>% 
+  left_join(burden, by = "GEOID") %>% 
   ggplot() +
   geom_sf(fill = "white", color = "gray0") + # US border
   geom_sf(aes(fill = increase/7*100), color = NA, size = 0.3) +
+  scale_fill_viridis_c(option = "magma", name = "Grid demand\nincrease (%)") +
+  new_scale_fill() +
+  
+  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
+  geom_sf(data = dac_sf %>% 
+            filter(sample == 1) %>% 
+            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
+  scale_fill_manual(values = c("DAC" = "gray80"),
+                    name = "") +
   
   theme_minimal() +
-  # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  scale_fill_viridis_c(option = "magma") +
   
   labs(title = "Impact on demand by household", fill = "Grid demand\nincrease (%)") +
   theme(legend.position = "right",
@@ -607,7 +571,7 @@ f7c <- CA_t %>%
         axis.text.y = element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
-        plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
+        plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = 0))
 
 
 
@@ -623,7 +587,7 @@ f7d <- burden_mean %>%
   scale_fill_manual(values = c("DAC" = "#E66101", "Non-DAC" = "#5E9ACF")) + 
   scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
   labs(
-    title = "Grid demand increase per household",
+    title = "",
     x = "",
     y = "Mean increase (%)"
   ) +
@@ -633,11 +597,113 @@ f7d <- burden_mean %>%
     axis.text.x = element_text(angle = 0, hjust = 0.5)
   )
 
-f7 <- ggarrange(f7a, f7b, f7c, f7d, nrow = 2, ncol = 2, widths = c(1,0.6))
+
+### moran's I
+df_clean <- CA_t[!st_is_empty(CA_t), ] %>% 
+  left_join(burden, by = "GEOID") %>%
+  filter(!is.na(increase))
+    
+    # Create spatial weights for this subset
+    nb <- poly2nb(df_clean, queen = TRUE)
+    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+    
+    # Run Moran's I permutation test
+    test_a <- moran.mc(df_clean$increase, listw = lw, nsim = 999, zero.policy = TRUE)
+    test_b <- moran.mc(df_clean$demand, listw = lw, nsim = 999, zero.policy = TRUE)
+    
+
+f7e <- moran_by_class %>% 
+  separate(class, into = c("tech", "scenario"), sep = "_", convert = TRUE) %>% 
+  filter(scenario == "Optimistic") %>% 
+  dplyr::select(-note, -scenario) %>% 
+  na.omit() %>% 
+  rbind(
+    tibble(
+      tech = c("Demand/HH", "Demand"),
+      SI = c(test_a$statistic, test_b$statistic),
+      p_value = c(test_a$p.value, test_b$p.value)
+    )
+  ) %>% 
+  mutate(tech = factor(tech, levels = c("Demand", "Demand/HH", "PS","PV","IC","HP","EV"))) %>% 
+  ggplot(aes(x = tech, y = SI)) +
+  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
+  geom_text(aes(label = round(SI, 2)), 
+            position = position_dodge(width = 0.7), 
+            vjust = -0.5, size = 3.5) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "Spatial inequality",
+    x = "",
+    y = "Moran's I",
+    fill = "Technology"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    
+    strip.placement = "outside", # Keep labels on the outside
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  ) 
+
+
+f7 <- ggarrange(f7a, ggarrange(f7b,f7d, nrow = 1), f7c, f7e, nrow = 2, ncol = 2, widths = c(1,0.6))
 
 ggsave("./fig/f7.png",
        f7,
        width = 12, height = 10)
+  
+  
+
+f6b <- moran_by_class %>% 
+  mutate(area = "State") %>% 
+  rbind(
+    moran_by_la %>% 
+      mutate(area = "LA"),
+    moran_by_bay %>% 
+      mutate(area = "Bay")
+  ) %>% 
+  filter(!is.na(SI)) %>%
+  separate(class, into = c("tech", "scenario"), sep = "_", convert = TRUE) %>%
+  mutate(tech = fct_reorder(tech, SI)) %>%
+  ggplot(aes(x = scenario, y = SI, fill = tech)) +
+  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
+  geom_text(aes(label = round(SI, 2)), 
+            position = position_dodge(width = 0.7), 
+            vjust = -0.5, size = 3.5) +
+  facet_wrap(~area, nrow = 3) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "Spatial inequality",
+    x = "",
+    y = "Moran's I",
+    fill = "Technology"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    legend.text = element_text(size = 10),
+    legend.position = "bottom",
+    
+    strip.placement = "outside", # Keep labels on the outside
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  ) 
+
 
 
 
@@ -715,10 +781,10 @@ for(k in 1:5){
   
   rd <- df %>%
     summarise(
+      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       peer            = sum(effect[str_detect(var, "peer")], na.rm = TRUE),
       home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
-      rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE),
-      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+      rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = ipt[k])
   
@@ -726,8 +792,8 @@ for(k in 1:5){
 }
   
 
-stage_order <- c("Current", "Future", "Subsidy", "More subsidy", 
-                 "Peer effects", "Home built after 2020", "Range", "Fast charger")
+stage_order <- c("Current", "Future", "Subsidy", "More subsidy", "Fast charger",
+                 "Peer effects", "Home built after 2020", "Range")
 
 df_long <- d1 %>% 
   left_join(result, by = "tech")  %>%
@@ -737,10 +803,10 @@ df_long <- d1 %>%
                         "future" = "Future",
                         "low.subsidy" = "Subsidy",
                         "high.subsidy" = "More subsidy",
+                        "charging_5mile" = "Fast charger",
                         "peer" = "Peer effects",
                         "home_age" = "Home built after 2020",
-                        "rangeanxiety" = "Range",
-                        "charging_5mile" = "Fast charger")) %>% 
+                        "rangeanxiety" = "Range")) %>% 
   
   mutate(stage = factor(stage, levels = stage_order)) %>% 
   group_by(tech) %>%
@@ -761,7 +827,7 @@ dff <- df_long %>%
          label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
   ungroup() %>% # Ungrouping is good practice after mutations
   mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
-                        ifelse(stage %in% c("Subsidy","More subsidy"), "Policy intervention",
+                        ifelse(stage %in% c("Subsidy","More subsidy","Fast charger"), "Policy intervention",
                                "Time variant")),
          class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
 
@@ -898,10 +964,10 @@ for(k in 1:5){
   
   rd <- df %>%
     summarise(
+      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       peer            = sum(effect[str_detect(var, "peer")], na.rm = TRUE),
       home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
-      rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE),
-      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+      rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = tech[k])
   
@@ -918,10 +984,10 @@ df_long_p <- d1 %>%
                         "future" = "Future",
                         "low.subsidy" = "Subsidy",
                         "high.subsidy" = "More subsidy",
+                        "charging_5mile" = "Fast charger",
                         "peer" = "Peer effects",
                         "home_age" = "Home built after 2020",
-                        "rangeanxiety" = "Range",
-                        "charging_5mile" = "Fast charger")) %>% 
+                        "rangeanxiety" = "Range")) %>% 
   mutate(stage = factor(stage, levels = stage_order)) %>% 
   
   group_by(tech) %>%
@@ -942,7 +1008,7 @@ dff <- df_long_p %>%
          label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
   ungroup() %>% # Ungrouping is good practice after mutations
   mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
-                        ifelse(stage %in% c("Subsidy"), "Policy intervention",
+                        ifelse(stage %in% c("Subsidy","Fast charger"), "Policy intervention",
                                "Time variant")),
          class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
 
@@ -1166,20 +1232,20 @@ for(k in 1:5){
   
   rd <- df %>%
     summarise(
+      charging_5mile  = sum(non_DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       peer            = sum(non_DAC[str_detect(var, "peer")], na.rm = TRUE),
       home_age            = sum(non_DAC[str_detect(var, "home_age")], na.rm = TRUE),
-      rangeanxiety    = sum(non_DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
-      charging_5mile  = sum(non_DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+      rangeanxiety    = sum(non_DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = ipt[k],
            dac = "Non_DAC") %>% 
     rbind(
       df %>%
         summarise(
+          charging_5mile  = sum(DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
           peer            = sum(DAC[str_detect(var, "peer")], na.rm = TRUE),
           home_age            = sum(DAC[str_detect(var, "home_age")], na.rm = TRUE),
-          rangeanxiety    = sum(DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE),
-          charging_5mile  = sum(DAC[str_detect(var, "charging_5mile_f1")], na.rm = TRUE)
+          rangeanxiety    = sum(DAC[str_detect(var, "rangeanxiety")], na.rm = TRUE)
         ) %>% 
         mutate(tech = ipt[k],
                dac = "DAC") 
@@ -1200,10 +1266,10 @@ df_long <- df_dac %>%
                         "future" = "Future",
                         "low.subsidy" = "Subsidy",
                         "high.subsidy" = "More subsidy",
+                        "charging_5mile" = "Fast charger",
                         "peer" = "Peer effects",
                         "home_age" = "Home built after 2020",
-                        "rangeanxiety" = "Range",
-                        "charging_5mile" = "Fast charger")) %>% 
+                        "rangeanxiety" = "Range")) %>% 
   mutate(stage = factor(stage, levels = stage_order)) %>% 
   
   group_by(dac, tech) %>%
@@ -1223,7 +1289,7 @@ dff <- df_long %>%
          label_val = if_else(value != 0, as.character(round(value, 0)), "")) %>%
   ungroup() %>% # Ungrouping is good practice after mutations
   mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
-                        ifelse(stage %in% c("Subsidy","More subsidy"), "Policy intervention",
+                        ifelse(stage %in% c("Subsidy","More subsidy","Fast charger"), "Policy intervention",
                                "Time variant")),
          class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
 
@@ -1249,10 +1315,10 @@ hlines <- tibble::tribble(
 
 error_data_dac <- data.frame(dac = "Non_DAC",
                              tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
-                                               x = c(7,9,6,7), 
+                                               x = c(8,9,7,8), 
                                                ymin = c(11.3,24.3,37.3,25.9), 
                                                ymax = c(14.3,45,40.7,29.5),
-                                               xmin = c(7.5,8.5,6.5,7.5)) %>% 
+                                               xmin = c(7.5,8.5,7.5,7.5)) %>% 
   mutate(text = round(ymax - ymin, 1)) %>% 
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 
@@ -1283,18 +1349,18 @@ f3a <- dff %>%
             fontface = "bold",
             size = 4) +
 
-  # geom_segment(data = segment_data,
-  #              aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
-  #              color = "gray40",
-  #              linewidth = 0.75) +
+  geom_segment(data = segment_data,
+               aes(x = id + 0.45, y = end, xend = id + 1 - 0.45, yend = end),
+               color = "gray40",
+               linewidth = 0.75) +
   
   geom_errorbar(data = error_data_dac,
                 aes(x = x, ymin = ymin, ymax = ymax),
                 width = 0.5,
                 color = "red",
                 linewidth = 1) +  # dynamically inserted arrow
-  
-  
+
+
   geom_text(data = error_data_dac,
             aes(x = xmin, y = ymin, label = paste0(text)),
             size = 4,
@@ -1332,7 +1398,7 @@ f3a <- dff %>%
   )
 
 f3 <- ggarrange(f3a, f3b, nrow = 2,
-                heights = c(1.5,1),
+                heights = c(1,1.5),
                 labels = c("A", "B"),  # Adds labels to plots
                 label.x = 0,        # Adjust horizontal position of labels
                 label.y = 1,        # Adjust vertical position of labels
@@ -1342,5 +1408,5 @@ f3 <- ggarrange(f3a, f3b, nrow = 2,
 
 ggsave("./fig/f3.png",
        f3,
-       width = 12, height = 10)
+       width = 12, height = 12)
 

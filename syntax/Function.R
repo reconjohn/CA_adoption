@@ -3400,3 +3400,6 @@ future3 <- c(110, 30) # if i == 3,
 future4 <- c(159, 35) # if i == 4,
 future1 <- future5 <- c(127, 72) # if i == 5,
 fut <- list(future1,future2,future3,future4,future5)
+
+
+load("./data/results.Rdata")

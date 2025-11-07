@@ -129,8 +129,8 @@ f1 <- results %>%
   mutate(mean = mean(Overall)) %>% 
   ungroup() %>% 
   ggplot() +
-  geom_col(aes(y = reorder(rowname, desc(mean)), x = Overall, fill = model), width = 0.7, position = position_dodge(0.8)) +
-  geom_point(aes(y = reorder(rowname, desc(mean)), x = mean), color = "red", width = 0.7, position = position_dodge(0.8))+
+  geom_col(aes(y = reorder(rowname, mean), x = Overall, fill = model), width = 0.7, position = position_dodge(0.8)) +
+  geom_point(aes(y = reorder(rowname, mean), x = mean), color = "red", width = 0.7, position = position_dodge(0.8))+
   labs(y = "", x = "Importance (%)", fill = "", title = "") +
   facet_grid(domain ~ tech, space = "free", scale = "free", switch = "y") +
   theme_bw() +
@@ -153,40 +153,6 @@ f1 <- results %>%
 ggsave("./fig/f1.png",
        f1,
        width = 12, height = 12)
-
-
-### comparison of adoption vs. MRP
-mrp %>%
-  left_join(CA_t %>% st_drop_geometry(), by = "GEOID") %>%
-  summarise(across(where(is.numeric), ~ weighted.mean(.x, w = estimate, na.rm = TRUE))) %>% 
-  t() %>% 
-  as.data.frame() %>% 
-  tibble::rownames_to_column(var = "name") %>% 
-  left_join(
-    data %>% 
-      summarise(across(
-        .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
-        .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
-      )) %>% 
-      t() %>% 
-      as.data.frame() %>% 
-      tibble::rownames_to_column(var = "name"), 
-    by = "name"
-  ) %>% 
-  filter(!is.na(V1.y))  %>% # Remove rows with NA in V1.y
-  filter(name != "future_PV") %>% 
-  
-  ggplot(aes(x = V1.x, y = V1.y, label = name)) +
-  geom_point(color = "steelblue", size = 3) +
-  geom_smooth(method = "lm", se = FALSE, color = "darkred", linetype = "dashed") +
-  geom_abline() +
-  geom_text(vjust = -0.5, hjust = 0.5, size = 3) +
-  labs(
-    x = "MRP",
-    y = "Survey",
-    title = "Scatter Plot"
-  ) +
-  theme_minimal()
 
 
 

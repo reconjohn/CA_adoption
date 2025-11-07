@@ -66,28 +66,36 @@ lapply(c("spatstat","colorRamps","tmap","ggmap","mapview","geoR","knitr","kableE
 ggsave <- function(..., bg = 'white') ggplot2::ggsave(..., bg = bg)
 sf::sf_use_s2(FALSE)
 load("./data/dac_sf.RData") # CA_t, cz, dac_sf, sc_map (DAC, climate zone spatial data)
+dac <- read_csv(file = "../DAC/data/DAC_CA_censustract.csv") %>%
+  dplyr::select(GEOID, sample)
 # names(mrp)
 # crosswalk <- read_csv("./survey.csv")
 
 ## PSPS test from Qi
-# psps <- read_csv("./data/raw/PSPS_winter_updated.csv") %>% 
-#   rename(winter = PSPS_number) %>% 
-#   dplyr::select(GEOID,winter) %>% 
-#   left_join(read_csv("./data/raw/PSPS_fall_updated.csv") %>% 
-#               rename(fall = PSPS_number) %>% 
-#               dplyr::select(GEOID,fall), by = "GEOID") %>% 
-#   left_join(read_csv("./data/raw/PSPS_spring_updated.csv") %>% 
-#               rename(spring = PSPS_number) %>% 
-#               dplyr::select(GEOID,spring), by = "GEOID") %>% 
-#   left_join(read_csv("./data/raw/PSPS_summer_updated.csv") %>% 
-#               rename(summer = PSPS_number) %>% 
-#               dplyr::select(GEOID,summer), by = "GEOID") %>% 
-#   mutate(GEOID = paste0("0",GEOID))
-# 
-# 
-# CA_t %>% 
-#   left_join(psps, by = "GEOID") %>% 
-#   gather(key, value, winter:summer) %>% 
+# CA_2010 <- get_acs("tract", state="CA", year = 2010, geometry = TRUE,
+#                    variables= "B25026_001") # population
+# save(CA_2010, file = "./data/raw/2010tr.Rdata")
+load("./data/raw/2010tr.Rdata")
+
+psps <- read_csv("./data/raw/PSPS_winter_updated.csv") %>%
+  rename(winter = PSPS_number) %>%
+  dplyr::select(GEOID,winter) %>%
+  left_join(read_csv("./data/raw/PSPS_fall_updated.csv") %>%
+              rename(fall = PSPS_number) %>%
+              dplyr::select(GEOID,fall), by = "GEOID") %>%
+  left_join(read_csv("./data/raw/PSPS_spring_updated.csv") %>%
+              rename(spring = PSPS_number) %>%
+              dplyr::select(GEOID,spring), by = "GEOID") %>%
+  left_join(read_csv("./data/raw/PSPS_summer_updated.csv") %>%
+              rename(summer = PSPS_number) %>%
+              dplyr::select(GEOID,summer), by = "GEOID") %>%
+  mutate(GEOID = paste0("0",GEOID))
+
+psps[is.na(psps)] <- 0
+
+# CA_2010 %>%
+#   left_join(psps, by = "GEOID") %>%
+#   gather(key, value, winter:summer) %>%
 #   ggplot() +
 #   geom_sf(fill = "white", color = "gray0") + # US border
 #   geom_sf(aes(fill = value), color = NA, size = 0.3) +
@@ -553,8 +561,8 @@ data_cl <- function(data, further = NULL){
                                       solstor_wtp_dv == "$1,000 in financial assistance"~ 1000,
                                       solstor_wtp_dv == "$2,000 in financial assistance"~ 2000,
                                       solstor_wtp_dv == "$3,000 in financial assistance"~ 3000, 
-                                      solstor_wtp_dv == "$5,000 in financial assistance"~ 4000,
-                                      solstor_wtp_dv == "$7,500 in financial assistance"~ 75000,
+                                      solstor_wtp_dv == "$5,000 in financial assistance"~ 5000,
+                                      solstor_wtp_dv == "$7,500 in financial assistance"~ 7500,
                                       solstor_wtp_dv == "$10,000 in financial assistance"~ 10000,
                                       solstor_wtp_dv == "$12,500 in financial assistance"~ 12500,
                                       solstor_wtp_dv == "$15,000 in financial assistance"~ 15000,
@@ -677,13 +685,15 @@ data_clean <- function(data, further = NULL){
                                 ev_wtp_pc < 12000)| EV == 1, 1, 0),
       
       future_PV = ifelse(solar_pv_plans %in% c("Yes", "Maybe") | PV == 1, 1, 0),
-      
-      future_PS_0 = ifelse(storage_plans %in% c("Yes", "Maybe") & solar_pv_plans %in% c("Yes", "Maybe") &
-                             solstor_wtp_dv == 0| PS == 1, 1, 0),
-      future_PS_72 = ifelse(storage_plans %in% c("Yes", "Maybe") & solar_pv_plans %in% c("Yes", "Maybe") &
-                              solstor_wtp_dv < 7200| PS == 1, 1, 0),
-      future_PS_127 = ifelse(storage_plans %in% c("Yes", "Maybe") & solar_pv_plans %in% c("Yes", "Maybe") &
-                               solstor_wtp_dv < 12700| PS == 1, 1, 0),
+      future_PS_0 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv == 0) | 
+                             (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv == 0) |
+                             PS == 1, 1, 0),
+      future_PS_76 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 7600) |
+                              (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 7600) |
+                              PS == 1, 1, 0),
+      future_PS_127 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 12700) |
+                               (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 12700) |
+                               PS == 1, 1, 0),
       
       future_HP_0 = ifelse(heatpump_direct > 2 & 
                              heatpump_wtp_pc == 0| HP == 1, 1, 0),
@@ -1246,7 +1256,7 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   bina <- c(
     "born_us",
     
-    "charging_5mile_f",
+    # "charging_5mile_f",
     "vehicle_next_used",
     # "vehicle_next_fuel",
     "charging_work",
@@ -1265,10 +1275,10 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
            "home_type",
            "employment",
            
-           "peer_EV",
-           "peer_PV",
-           "peer_HP",
-           "peer_IC",
+           # "peer_EV",
+           # "peer_PV",
+           # "peer_HP",
+           # "peer_IC",
            
            # "charging_5mile_f",
            # "vehicle_next_used",
@@ -1287,18 +1297,18 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   ) %>% 
     setdiff(remove)
   
-  exclusions <- list(
-    c("peer_EV", "peer_HP", "peer_IC"),
-    c("peer_PV", "peer_HP", "peer_IC"),
-    c("peer_EV", "peer_PV", "peer_IC"),
-    c("peer_EV", "peer_HP", "peer_PV")
-  )
-  
-  if(i %in% c(1,5)){
-    cat <- cat %>% setdiff(exclusions[[1]])
-  }else{
-    cat <- cat %>% setdiff(exclusions[[i]])
-  }
+  # exclusions <- list(
+  #   c("peer_EV", "peer_HP", "peer_IC"),
+  #   c("peer_PV", "peer_HP", "peer_IC"),
+  #   c("peer_EV", "peer_PV", "peer_IC"),
+  #   c("peer_EV", "peer_HP", "peer_PV")
+  # )
+  # 
+  # if(i %in% c(1,5)){
+  #   cat <- cat %>% setdiff(exclusions[[1]])
+  # }else{
+  #   cat <- cat %>% setdiff(exclusions[[i]])
+  # }
   
   
   ftr <- c("climatezone",
@@ -1307,6 +1317,7 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
            "born_us",
            "home_type",
            "employment",
+           "home_age",
            
            "peer_EV",
            "peer_PV",
@@ -1683,8 +1694,8 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
   # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
   # remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
   # scenario <- c("peer_PV","home_age")
-  # i <- 5
-  # future <- 127
+  # i <- 2
+  # future <- 0
   
   da_r <- data %>% 
     dplyr::select(# remove multicollinear variables
@@ -1723,7 +1734,7 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
   bina <- c(
     "born_us",
     
-    "charging_5mile_f",
+    # "charging_5mile_f",
     "vehicle_next_used",
     # "vehicle_next_fuel",
     "charging_work",
@@ -1741,11 +1752,12 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
            # "born_us",
            "home_type",
            "employment",
+           # "home_age",
            
-           "peer_EV",
-           "peer_PV",
-           "peer_HP",
-           "peer_IC",
+           # "peer_EV",
+           # "peer_PV",
+           # "peer_HP",
+           # "peer_IC",
            
            # "charging_5mile_f",
            # "vehicle_next_used",
@@ -1764,18 +1776,18 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
   ) %>% 
     setdiff(remove)
   
-  exclusions <- list(
-    c("peer_EV", "peer_HP", "peer_IC"),
-    c("peer_PV", "peer_HP", "peer_IC"),
-    c("peer_EV", "peer_PV", "peer_IC"),
-    c("peer_EV", "peer_HP", "peer_PV")
-  )
-  
-  if(i %in% c(1,5)){
-    cat <- cat %>% setdiff(exclusions[[1]])
-  }else{
-    cat <- cat %>% setdiff(exclusions[[i]])
-  }
+  # exclusions <- list(
+  #   c("peer_EV", "peer_HP", "peer_IC"),
+  #   c("peer_PV", "peer_HP", "peer_IC"),
+  #   c("peer_EV", "peer_PV", "peer_IC"),
+  #   c("peer_EV", "peer_HP", "peer_PV")
+  # )
+  # 
+  # if(i %in% c(1,5)){
+  #   cat <- cat %>% setdiff(exclusions[[1]])
+  # }else{
+  #   cat <- cat %>% setdiff(exclusions[[i]])
+  # }
   
   
   ftr <- c("climatezone",
@@ -1783,6 +1795,7 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
            "race",
            "born_us",
            "home_type",
+           "home_age",
            "employment",
            
            "peer_EV",
@@ -1810,6 +1823,10 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
   # da$race %>% unique
   da_r[,ftr] <- data.frame(lapply(da_r[ftr],as.factor)) 
   
+  # da_r <- da_r %>% 
+  #   mutate(across(starts_with("peer"), ~factor(.x, levels = rev(c("neighbor_peer","neighbor","peer","none"))))) 
+    
+  
   # dummy sum contrast based on reference category (-1)
   for (var in cat) {
     k <- length(levels(da_r[[var]]))
@@ -1831,14 +1848,15 @@ mreg_dac <- function(data, remove = NULL, i, scenario = NULL, future = NULL, pee
   
   if(!is.null(peer)){
     
+    # for the peer effect analysis in details based on DAC
     da_r <- da_r %>% 
-      mutate(across(starts_with("peer"), ~factor(.x, levels = rev(c("neighbor_peer","neighbor","peer","none"))))) %>% # avoid the sum contrast
+      mutate(across(starts_with("peer"), ~factor(.x, levels = rev(c("neighbor_peer","neighbor","peer","none")))))  %>% # avoid the sum contrast
       mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
       mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
   }else{
     
     da_r <- da_r %>% 
-      mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
+      mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% 
       mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
       mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
     
@@ -2803,6 +2821,9 @@ freg_logit <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   # da$race %>% unique
   da_r[,ftr] <- data.frame(lapply(da_r[ftr],as.factor)) 
   
+  da_r <- da_r %>% 
+    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none"))))
+  
   
   # dummy sum contrast based on reference category (-1)
   for (var in cat) {
@@ -2821,8 +2842,7 @@ freg_logit <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   
   da_r <- da_r %>% 
     mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
-    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1)) %>% 
-    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none"))))
+    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1)) 
 
   
   # lapply(da_r, unique)
@@ -2930,13 +2950,13 @@ freg_logit <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
 }
 
 
+### scenario variable specific impacts - random slopes (no sum contrasts)
 freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   
   # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
   # remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
-  # scenario <- c("peer_EV","charging_5mile_f","rangeanxiety")
-  # 
-  # future <- 120
+  # scenario <- c("home_age","peer_EV","charging_5mile_f","rangeanxiety")
+
   
   da_r <- data %>% 
     dplyr::select(# remove multicollinear variables
@@ -2948,6 +2968,8 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
       -starts_with("future"),
     ) %>% 
     dplyr::select(-remove)
+  
+  future <- fut[[i]][1] # optimistic
   
   if(i == 1){
     future_var <- sym(paste0("future_", ipt[i]))
@@ -2994,12 +3016,12 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
            # "born_us",
            "home_type",
            "employment",
-           "home_age",
+           # "home_age",
            
-           "peer_EV",
-           "peer_PV",
-           "peer_HP",
-           "peer_IC",
+           # "peer_EV",
+           # "peer_PV",
+           # "peer_HP",
+           # "peer_IC",
            
            # "charging_5mile_f",
            # "vehicle_next_used",
@@ -3018,18 +3040,18 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   ) %>% 
     setdiff(remove)
   
-  exclusions <- list(
-    c("peer_EV", "peer_HP", "peer_IC"),
-    c("peer_PV", "peer_HP", "peer_IC"),
-    c("peer_EV", "peer_PV", "peer_IC"),
-    c("peer_EV", "peer_HP", "peer_PV")
-  )
-  
-  if(i %in% c(1,5)){
-    cat <- cat %>% setdiff(exclusions[[1]])
-  }else{
-    cat <- cat %>% setdiff(exclusions[[i]])
-  }
+  # exclusions <- list(
+  #   c("peer_EV", "peer_HP", "peer_IC"),
+  #   c("peer_PV", "peer_HP", "peer_IC"),
+  #   c("peer_EV", "peer_PV", "peer_IC"),
+  #   c("peer_EV", "peer_HP", "peer_PV")
+  # )
+  # 
+  # if(i %in% c(1,5)){
+  #   cat <- cat %>% setdiff(exclusions[[1]])
+  # }else{
+  #   cat <- cat %>% setdiff(exclusions[[i]])
+  # }
   
   ftr <- c("climatezone",
            "dac",
@@ -3080,9 +3102,9 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   
   
   da_r <- da_r %>% 
+    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% 
     mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
-    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1)) %>% 
-    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) # avoid the sum contrast
+    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1)) 
   
   # lapply(da_r, unique)
   # summary(da_r)
@@ -3132,11 +3154,11 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   }
   
   fit <- lmer(fvar, weights = wt_ca, data = da_r)
-  # summary(fit)
-  sum_fit <- summary(fit)$coef %>% 
-    as.data.frame() %>% 
-    tibble::rownames_to_column("var") %>% 
-    dplyr::select(var, Estimate)
+  # # summary(fit)
+  # sum_fit <- summary(fit)$coef %>% 
+  #   as.data.frame() %>% 
+  #   tibble::rownames_to_column("var") %>% 
+  #   dplyr::select(var, Estimate)
   
   
   names <- ranef(fit)[[1]] %>% colnames()
@@ -3166,6 +3188,8 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
     dplyr::select(-R_effect.x, -R_effect.y) %>% 
     pivot_wider(names_from = scene, values_from = R_effect) 
   
+  re_slope$home_ageNewer %>% mean()
+  
   
   re <- re_slope %>% 
     dplyr::select(-names[1]) %>% 
@@ -3194,7 +3218,7 @@ final_ef_peer <- function(data, i, future){
   remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
   
   # lpm
-  re <- freg_lpm(data, remove, i, scenario, future)
+  re <- freg_lpm(data, remove, i, scenario)
   
   # logit
   # re <- freg_logit(data, remove, i, scenario, future)
@@ -3204,7 +3228,7 @@ final_ef_peer <- function(data, i, future){
         mutate(R_effect = case_when(
           str_detect(scene, "none") ~ -0.23*R_effect,
           str_detect(scene, "peer") ~ -0.14*R_effect,
-          str_detect(scene, "Older") ~ -0.2*R_effect
+          str_detect(scene, "Newer") ~ 0.2*R_effect
         ))
     }else if(i == 3){
       re <- re %>%
@@ -3215,7 +3239,7 @@ final_ef_peer <- function(data, i, future){
       re <- re %>%
         mutate(R_effect = case_when(
           str_detect(scene, "none") ~ -0.17*R_effect,
-          str_detect(scene, "Older") ~ -0.2*R_effect
+          str_detect(scene, "Newer") ~ 0.2*R_effect
         ))
     }else{
       re <- re %>%
@@ -3223,7 +3247,7 @@ final_ef_peer <- function(data, i, future){
           str_detect(scene, "none") ~ -0.26*R_effect,
           str_detect(scene, "peer") ~ -0.04*R_effect,
           str_detect(scene, "charging") ~ 0.32*R_effect,
-          str_detect(scene, "Older") ~ -0.2*R_effect,
+          str_detect(scene, "Newer") ~ 0.2*R_effect,
           str_detect(scene, "range") ~ -2*R_effect # 100 mile different is 1 sd
         ))
     }
@@ -3233,7 +3257,7 @@ final_ef_peer <- function(data, i, future){
       re <- re %>%
         mutate(R_effect = case_when(
           str_detect(scene, "none") ~ -0.18*R_effect,
-          str_detect(scene, "Older") ~ -0.09*R_effect
+          str_detect(scene, "Newer") ~ 0.09*R_effect
         ))
     }else if(i == 3){
       re <- re %>%
@@ -3244,7 +3268,7 @@ final_ef_peer <- function(data, i, future){
       re <- re %>%
         mutate(R_effect = case_when(
           str_detect(scene, "none") ~ -0.07*R_effect,
-          str_detect(scene, "Older") ~ -0.09*R_effect
+          str_detect(scene, "Newer") ~ 0.09*R_effect
         ))
     }else{
       re <- re %>%
@@ -3252,7 +3276,7 @@ final_ef_peer <- function(data, i, future){
           str_detect(scene, "none") ~ -0.15*R_effect,
           str_detect(scene, "charging") ~ 0.16*R_effect,
           str_detect(scene, "range") ~ -1*R_effect,
-          str_detect(scene, "Older") ~ -0.09*R_effect
+          str_detect(scene, "Newer") ~ 0.09*R_effect
         ))
     }
   }
@@ -3392,13 +3416,66 @@ data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = 
 mrp <- read_csv("./data/raw/mrp_scenariovars_tract.csv") %>% 
   mutate(GEOID = str_sub(geoid_tract2020, 10)) %>%
   dplyr::select(-geoid_tract2020,-future_EV10) %>% 
-  mutate(future_PS_0 = ifelse(future_PS_0 > future_PS_72, future_PS_72, future_PS_0))
+  mutate(future_PS_0 = ifelse(future_PS_0 > future_PS_76, future_PS_76, future_PS_0)) %>% 
+  left_join(read_csv("./data/raw/mrptractresults_currentadoption.csv") %>% 
+              mutate(GEOID = str_sub(ca.tract, 10)) %>%
+              dplyr::rename(HP = current_HP,
+                            PS = current_PS,
+                            IC = current_IC,
+                            EV = current_EV) %>% 
+              dplyr::select(-ca.tract), by = "GEOID")
+
+
+### comparison of adoption vs. MRP
+mrp_mean <- mrp %>%
+  left_join(CA_t %>% st_drop_geometry(), by = "GEOID") %>%
+  summarise(across(where(is.numeric), ~ weighted.mean(.x, w = estimate, na.rm = TRUE))) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  tibble::rownames_to_column(var = "name") 
+
+
+mrp_mean_dac <- mrp %>%
+  left_join(dac, by = "GEOID") %>% 
+  left_join(CA_t %>% st_drop_geometry(), by = "GEOID") %>%
+  group_by(sample) %>% 
+  summarise(across(where(is.numeric), ~ weighted.mean(.x, w = estimate, na.rm = TRUE))) %>% 
+  dplyr::select(-estimate,-moe)
+
+
+# mrp_mean %>%
+#   left_join(
+#     data %>%
+#       summarise(across(
+#         .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
+#         .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
+#       )) %>%
+#       t() %>%
+#       as.data.frame() %>%
+#       tibble::rownames_to_column(var = "name"),
+#     by = "name"
+#   ) %>%
+#   filter(!is.na(V1.y))  %>% # Remove rows with NA in V1.y
+#   filter(name != "future_PV") %>%
+# 
+#   ggplot(aes(x = V1.x, y = V1.y, label = name)) +
+#   geom_point(color = "steelblue", size = 3) +
+#   geom_smooth(method = "lm", se = FALSE, color = "darkred", linetype = "dashed") +
+#   geom_abline() +
+#   geom_text(vjust = -0.5, hjust = 0.5, size = 3) +
+#   labs(
+#     x = "MRP",
+#     y = "Survey",
+#     title = "Scatter Plot"
+#   ) +
+#   theme_minimal()
+
 
 
 future2 <- c(120, 75) # if i == 2,
 future3 <- c(110, 30) # if i == 3,
 future4 <- c(159, 35) # if i == 4,
-future1 <- future5 <- c(127, 72) # if i == 5,
+future1 <- future5 <- c(127, 76) # if i == 5,
 fut <- list(future1,future2,future3,future4,future5)
 
 

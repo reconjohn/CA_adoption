@@ -1,52 +1,100 @@
-# Code for: "Rooftop solar, electric vehicle, and heat pump adoption in rural areas in the United States."
+# Project: Policy levers, adoption gaps, and grid impacts in California for equitable energy transition
 
-The following includes descriptions of data, code, and functions used for data analyses and visualizations for the paper titled, "Rooftop solar, electric vehicle, and heat pump adoption in rural areas in the United States."
+This repository contains the R scripts for a comprehensive analysis of technology adoption in California. The project models adoption patterns by validating survey data, analyzing the impacts of subsidies and peer effects, examining spatial distributions, and identifying key drivers using machine learning. The final output synthesizes these findings into predictive "what-if" scenarios.
 
-Please cite as: Min, Yohan & Mayfield, Erin. Rooftop solar, electric vehicle, and heat pump adoption in rural areas in the United States. Energy Research & Social Science 2023;105:103292. https://doi.org/10.1016/j.erss.2023.103292.
+---
+
+## Project Workflow
+
+The analysis is structured to be run in a logical sequence. Scripts build upon each other, starting with setup and data exploration, moving to specific model components, and concluding with synthesis and feature analysis.
+
+**Typical workflow:**
+
+1. `Function.R`: Run first to load libraries, data, and helper functions.  
+2. `function_test.R`: Run to explore and understand the raw data.  
+3. `MRP.R`: Run to validate the survey data against MRP estimates.  
+4. `ML.R`: Run to identify the relative importance of the variables using machine learning algorithms.  
+5. `subsidy.R`, `peer_effect.R`, `spatial.R`: Core analysis scripts modeling individual factors (subsidies, social influence, geography).  
+6. `scenario.R`: Run last to build predictive scenarios.
 
 
-## File Descriptions
+---
 
-`Official_function.R`: This file contains the necessary libraries, data, and functions required for the analysis.
+## Script Descriptions
 
-`official_data.R`: This script executes the code for generating data for figures and conducting analyses.
+### 1. `Function.R`
 
-`official_code.R`: This script executes the code for generating figures and conducting analyses.
+**Purpose:** Central setup and utility script.
 
-`official_data.Rdata`: This data file includes Residential Energy Consumption Survey (RECS) data at the household level, state-level data, energy burden data, Republican vote rates, and boundary information for mapping.
+- Foundational script for the entire project; must be sourced at the beginning of any session.
+- Loads all required R packages (e.g., `dplyr`, `ggplot2`, `sf`).
+- Loads raw or pre-processed data (`.csv`, `.rds`, `.shp`) into the global environment.
+- Defines custom helper functions for data cleaning, plotting, and modeling.
 
-`vermont.Rdata`: This data file contains Vermont-specific data at the town level for the year 2020.
+---
 
-`RECS.Rdata`: This data file contains estimated adoption rate values based on other predictors for urban and rural areas at the household level.
+### 2. `function_test.R`
 
-`A_comparison.Rdata`: This data file contains estimated adoption rate values based on the adoption of other technologies for urban and rural areas at the household level.
+**Purpose:** Exploratory Data Analysis (EDA)
 
-## Function Descriptions
+- A sandbox for initial data investigation.
+- Contains data summaries, statistical tests, and visualizations.
+- Checks data distributions, missing values, and outliers.
+- Helps form initial hypotheses for formal testing.
 
-`sim_countf`: This function computes the adoption rate difference of a technology between scenarios when other technologies are in effect and when they are not in Vermont.
-- Input: Vermont data at the town level and the name of the technology.
-- Output: Estimated adoption rate difference between scenarios where the technology is in effect or not, with a 95% confidence interval.
+---
 
-`sim_plot`: This function visualizes the results from `sim_countf`.
-- Input: Output of `sim_countf` and the name of the technology.
-- Output: A figure that visualizes the effect of the adoption of other technologies on the adoption of the specified technology.
+### 3. `MRP.R`
 
-`b_countf`: This function computes the adoption rate of a technology based on various energy burden values in Vermont.
-- Input: Vermont data at the town level and the name of the technology.
-- Output: Estimated adoption rate of the technology for various energy burden values, with a 95% confidence interval.
+**Purpose:** Data validation with the estimates from Multilevel Regression & Poststratification (MRP)
 
-`r_countf`: This function computes the adoption rate of a technology based on various Republican vote rate values in Vermont.
-- Input: Vermont data at the town level and the name of the technology.
-- Output: Estimated adoption rate of the technology for various Republican vote rate values, with a 95% confidence interval.
+- Validates the representativeness of the survey data.
+- Compares MRP-generated means with raw survey sample means.
 
-`s_countf`: This function computes the adoption rate difference of a technology between scenarios when other predictors are in effect and when they are not in Vermont.
-- Input: Vermont data at the town level and the name of the technology.
-- Output: Estimated adoption rate difference between scenarios where other predictors are in effect or not, with a 95% confidence interval.
+---
 
-`s_plot`: This function visualizes the results from `s_countf`.
-- Input: Output of `s_countf` and the name of the technology.
-- Output: A figure that visualizes the effect of other predictors on the adoption of the specified technology.
+### 4. `ML.R`
 
-`countf`: This function computes the adoption rate of a technology based on various values of the predictor in Vermont.
-- Input: Vermont data at the town level, the name of the technology, and the name of a predictor.
-- Output: Estimated adoption rate of the technology for various values of the predictor, with a 95% confidence interval.
+**Purpose:** Machine learning analysis for feature importance
+
+- Performs machine learning to identify key adoption drivers.
+- Builds predictive models (e.g., GLM, Lasso, and Gradient Boosting).
+
+---
+
+
+### 5. `subsidy.R`
+
+**Purpose:** Subsidy impact analysis
+
+- Quantifies the effect of subsidies on technology adoption.
+- Measure impacts of different subsidy levels by income level or Disadvantaged Community (DAC) assignment.
+
+---
+
+### 6. `peer_effect.R`
+
+**Purpose:** Social influence analysis
+
+- Models the dynamic nature of peer effects on adoption.
+- Tracks how social influence differ by urbanization, DAC, and technology.
+
+---
+
+### 7. `spatial.R`
+
+**Purpose:** Spatial analysis of patterns
+
+- Maps geographic distribution of adoption rates and model results.
+- Uses spatial statistics (e.g., Moran’s I) to test for autocorrelation.
+- Identifies adoption "hot spots" and links findings to specific locations.
+
+
+---
+
+### 8. `scenario.R`
+
+**Purpose:** Predictive scenario building
+
+- Combines impacts of subsidies, peer effects, and other drivers.
+- Simulates "what-if" scenarios for policy planning (e.g., future adoption under increased subsidies).

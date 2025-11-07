@@ -1,61 +1,63 @@
 source("./syntax/Function.R")
 ggsave <- function(..., bg = 'white') ggplot2::ggsave(..., bg = bg)
 
-
 remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv", "education","employment")
 
+# ### MRP mapping
+# tt <- CA_t %>% dplyr::select(GEOID, estimate) %>%
+#   left_join(mrp %>% 
+#               dplyr::select(-future_PV), by = "GEOID")
+# 
+# tt %>%
+#   gather(key, value, future_EV_0:future_IC_159) %>%
+#   mutate(key = factor(key, levels = names(tt)[3:14])) %>% 
+#   ggplot() +
+#   geom_sf(fill = "white", color = "gray0") + # US border
+#   geom_sf(aes(fill = value), color = NA, size = 0.3) +
+#   facet_wrap(~key, nrow = 3, dir = "v") +
+# 
+#   theme_minimal() +
+#   # scale_fill_distiller(palette = "RdBu", direction = -1) +
+#   scale_fill_viridis_c(option = "magma") +
+# 
+#   labs(title = "Final adoption by scenario", fill = "") +
+#   theme(legend.position = "right",
+#         # legend.text=element_text(size=6),
+#         # legend.key.size = unit(0.3, 'cm'),
+#         strip.text = element_text(),
+#         axis.text.x = element_blank(),
+#         axis.text.y = element_blank(),
+#         panel.grid.minor = element_blank(),
+#         panel.grid.major = element_blank(),
+#         plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
 
-### MRP mapping
-tt <- CA_t %>% dplyr::select(GEOID, estimate) %>%
+
+### scenario
+effect <- list()
+for(i in seq_along(ipt)){
+  future <- fut[[i]]
+  scene <- c("Optimistic","Pessimistic")
+
+  for(j in 1:2){
+    f_d <- final_ef_peer(data, i, future[j]) %>%
+      mutate(class = paste0(ipt[i],"_",scene[j]))
+
+    effect <- append(effect, list(f_d))
+
+  }
+}
+
+df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","MRP","Final","class"), drop = FALSE])
+combined_df <- bind_rows(df_common)
+
+combined_df_wide <- combined_df %>% 
+  dplyr::select(-Effect) %>% 
+  pivot_wider(names_from = class, values_from = c(MRP,Final)) %>% 
   left_join(mrp %>% 
-              dplyr::select(-future_PV), by = "GEOID")
+              dplyr::select(GEOID, which(str_detect(names(.), "_0"))), by = "GEOID")
 
-tt %>%
-  gather(key, value, future_EV_0:future_IC_159) %>%
-  mutate(key = factor(key, levels = names(tt)[3:14])) %>% 
-  ggplot() +
-  geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = value), color = NA, size = 0.3) +
-  facet_wrap(~key, nrow = 3, dir = "v") +
-
-  theme_minimal() +
-  # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  scale_fill_viridis_c(option = "magma") +
-
-  labs(title = "Final adoption by scenario", fill = "") +
-  theme(legend.position = "right",
-        # legend.text=element_text(size=6),
-        # legend.key.size = unit(0.3, 'cm'),
-        strip.text = element_text(),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank(),
-        plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
-
-
-# ### scenario 
-# effect <- list()
-# for(i in seq_along(ipt)){
-#   future <- fut[[i]]
-#   scene <- c("Optimistic","Pessimistic")
-#   
-#   for(j in 1:2){
-#     f_d <- final_ef_peer(data, i, future[j]) %>% 
-#       mutate(class = paste0(ipt[i],"_",scene[j]))
-#     
-#     effect <- append(effect, list(f_d))
-#     
-#   }
-# }
-# 
-# 
-# df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","MRP","Final","class"), drop = FALSE])
-# combined_df <- bind_rows(df_common)
-# write_csv(combined_df, "./data/result.csv")
-# 
-# 
-# save(effect, mrp, file = "./data/results.Rdata") # for official sharing
+write_csv(combined_df_wide, "./data/result.csv")
+save(effect, mrp, file = "./data/results.Rdata") # for official sharing
 
 
 ### mapping the final adoption 
@@ -98,6 +100,7 @@ for(i in 1:5){
   
 }
 
+### final adoption by tract
 final <- data.frame()
 for(i in 1:5){
   tp <- dplyr::bind_rows(effect[(2*i-1):(2*i)]) %>% 
@@ -105,7 +108,7 @@ for(i in 1:5){
                   peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE),
                   home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
                 ) %>%
-                dplyr::select(-ends_with(c("New","Older","peer","none"))) %>% 
+                dplyr::select(-ends_with(c("New","Newer","peer","none"))) %>% 
     pivot_longer(cols = c(Effect, MRP, Final), names_to = "key", values_to = "value") %>% 
     mutate(key = factor(key, levels = c("MRP","Effect","Final"))) %>% 
     filter(key == "Final") %>% 
@@ -120,7 +123,8 @@ CA_c <- CA_t %>%
   summarise(geometry = st_union(geometry))
 
 
-f3b <- CA_t %>% 
+### mapping
+map_dac <- CA_t %>% 
   dplyr::select(GEOID) %>% 
   left_join(final %>% 
               separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
@@ -165,252 +169,58 @@ f3b <- CA_t %>%
       st_collection_extract("POLYGON") %>%  # Remove geometry collections
       filter(st_area(.) > units::set_units(1, "m^2")) %>%  # Remove tiny fragments
       mutate(DAC = "Non-DAC")
-  ) %>% 
-
-  ggplot() +
-  geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = value), color = NA, size = 0.3) +
-  scale_fill_viridis_c(option = "magma", name = "Adoption") +
-  # new_scale_fill() +
-  
-  geom_sf(data = CA_c, fill = NA, color = "gray50", linewidth = 0.05) +
-  # geom_sf(data = dac_sf %>% 
-  #           filter(sample == 1) %>% 
-  #           mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
-  # scale_fill_manual(values = c("DAC" = "gray80"),
-  #                   name = "") +
-  
-  facet_grid(DAC~tech, switch = "y") +
-  
-  theme_minimal() +
-  # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  # scale_fill_viridis_c(option = "magma") +
-  
-  labs(title = "", fill = "Adoption") +
-  
-  theme(
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 12),
-    plot.title = element_text(face = "bold", size = 16),
-    
-    axis.text.x = element_blank(),
-    axis.text.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    legend.text = element_text(size = 10),
-    legend.position = "right",
-    
-    strip.placement = "outside", # Keep labels on the outside
-    # strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'black',family="Franklin Gothic Book",size=12, face = "bold"),
-    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
-    
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
   )
 
-
-### moran's I 
-moran_by_class <- CA_t[!st_is_empty(CA_t), ] %>% 
-  left_join(final, by = "GEOID") %>%
-  group_split(class) %>%
-  map_df(function(df) {
-    # Remove rows with NA in value
-    df_clean <- df %>% filter(!is.na(value))
+tech_name <- c("PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves")
+dac_map <- list()
+for(i in 1:4){
+  dac_map[[i]] <- map_dac %>% 
+    filter(tech == tech_name[i]) %>% 
     
-    # Skip if fewer than 2 observations
-    if (nrow(df_clean) < 2) {
-      return(tibble(
-        class = unique(df$class),
-        SI = NA_real_,
-        p_value = NA_real_,
-        note = "Too few observations"
-      ))
-    }
+    ggplot() +
+    geom_sf(fill = "white", color = "gray0") + # US border
+    geom_sf(aes(fill = value), color = NA, size = 0.3) +
+    scale_fill_viridis_c(option = "magma", name = "Adoption") +
+    # new_scale_fill() +
     
-
-    # Create spatial weights for this subset
-    nb <- poly2nb(df_clean, queen = TRUE)
-    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+    geom_sf(data = CA_c, fill = NA, color = "gray50", linewidth = 0.05) +
+    # geom_sf(data = dac_sf %>% 
+    #           filter(sample == 1) %>% 
+    #           mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
+    # scale_fill_manual(values = c("DAC" = "gray80"),
+    #                   name = "") +
     
-    # Run Moran's I permutation test
-    test <- moran.mc(df_clean$value, listw = lw, nsim = 999, zero.policy = TRUE)
+    facet_wrap(~DAC, nrow = 2) +
     
-    # Return results
-    tibble(
-      class = unique(df$class),
-      SI = test$statistic,
-      p_value = test$p.value,
-      note = NA_character_
-    )
-  })
-
-
-### only urban
-la_metro_geoids <- c(
-  "06037",  # Los Angeles
-  "06059"  # Orange
-)
-
-bay_area_geoids <- c(
-  "06075",  # San Francisco
-  "06081",  # San Mateo
-  "06085"  # Santa Clara
-)
-
-
-
-moran_by_la <- CA_t %>% 
-  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
-  filter(county %in% la_metro_geoids) %>% 
-  left_join(final, by = "GEOID") %>%
-  group_split(class) %>%
-  map_df(function(df) {
-    # Remove rows with NA in value
-    df_clean <- df %>% filter(!is.na(value))
+    theme_minimal() +
+    # scale_fill_distiller(palette = "RdBu", direction = -1) +
+    # scale_fill_viridis_c(option = "magma") +
     
-    # Skip if fewer than 2 observations
-    if (nrow(df_clean) < 2) {
-      return(tibble(
-        class = unique(df$class),
-        SI = NA_real_,
-        p_value = NA_real_,
-        note = "Too few observations"
-      ))
-    }
+    labs(title = tech_name[i], fill = "Adoption") +
     
-    # Create spatial weights for this subset
-    nb <- poly2nb(df_clean, queen = TRUE)
-    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
-    
-    # Run Moran's I permutation test
-    test <- moran.mc(df_clean$value, listw = lw, nsim = 999, zero.policy = TRUE)
-    
-    # Return results
-    tibble(
-      class = unique(df$class),
-      SI = test$statistic,
-      p_value = test$p.value,
-      note = NA_character_
-    )
-  })
-
-
-moran_by_bay <- CA_t %>% 
-  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
-  filter(county %in% bay_area_geoids) %>% 
-  left_join(final, by = "GEOID") %>%
-  group_split(class) %>%
-  map_df(function(df) {
-    # Remove rows with NA in value
-    df_clean <- df %>% filter(!is.na(value))
-    
-    # Skip if fewer than 2 observations
-    if (nrow(df_clean) < 2) {
-      return(tibble(
-        class = unique(df$class),
-        SI = NA_real_,
-        p_value = NA_real_,
-        note = "Too few observations"
-      ))
-    }
-    
-    # Create spatial weights for this subset
-    nb <- poly2nb(df_clean, queen = TRUE)
-    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
-    
-    # Run Moran's I permutation test
-    test <- moran.mc(df_clean$value, listw = lw, nsim = 999, zero.policy = TRUE)
-    
-    # Return results
-    tibble(
-      class = unique(df$class),
-      SI = test$statistic,
-      p_value = test$p.value,
-      note = NA_character_
-    )
-  })
-
-
-f6b <- moran_by_class %>% 
-  mutate(area = "State") %>% 
-  rbind(
-    moran_by_la %>% 
-      mutate(area = "LA"),
-    moran_by_bay %>% 
-      mutate(area = "Bay")
-  ) %>% 
-  filter(!is.na(SI)) %>%
-  separate(class, into = c("tech", "scenario"), sep = "_", convert = TRUE) %>%
-  mutate(tech = fct_reorder(tech, SI)) %>%
-  ggplot(aes(x = scenario, y = SI, fill = tech)) +
-  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
-  geom_text(aes(label = round(SI, 2)), 
-            position = position_dodge(width = 0.7), 
-            vjust = -0.5, size = 3.5) +
-  facet_wrap(~area, nrow = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-  labs(
-    title = "Spatial inequality",
-    x = "",
-    y = "Moran's I",
-    fill = "Technology"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 12),
-    plot.title = element_text(face = "bold", size = 16),
-    legend.text = element_text(size = 10),
-    legend.position = "bottom",
-    
-    strip.placement = "outside", # Keep labels on the outside
-    strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
-    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
-    
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
-  ) 
-
-
-f6a <- CA_t %>% 
-  mutate(county = gsub("\\d{6}$", "", GEOID)) %>% 
-  filter(county %in% c(la_metro_geoids, bay_area_geoids)) %>% 
-  ggplot() +
-  geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = estimate/1000), color = NA, size = 0.3) +
-  geom_sf(data = CA_c, fill = NA, color = "gray40", linewidth = 0.1) +
+    theme(
+      axis.text = element_text(size = 12),
+      axis.title = element_text(size = 12),
+      plot.title = element_text(face = "bold", size = 16),
+      
+      axis.text.x = element_blank(),
+      axis.text.y = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_blank(),
+      legend.text = element_text(size = 10),
+      legend.position = "bottom",
+      
+      strip.placement = "outside", # Keep labels on the outside
+      # strip.background =element_rect(fill="gray22",color="gray22"),
+      strip.text = element_text(color = 'black',family="Franklin Gothic Book",size=12, face = "bold"),
+      strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+      
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank()  )
   
-  theme_minimal() +
-  # scale_fill_distiller(palette = "RdBu", direction = -1) +
-  scale_fill_viridis_c(option = "magma") +
-  
-  labs(title = "Urban Areas in CA", fill = "Population (k)") +
-  
-  theme(
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 12),
-    plot.title = element_text(face = "bold", size = 16),
-    
-    axis.text.x = element_blank(),
-    axis.text.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    legend.text = element_text(size = 10),
-    legend.position = "bottom",
-    
-    strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
-    
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank())
+}
 
-
-f6 <- ggarrange(f6a, f6b, nrow = 1)
-ggsave("./fig/f6.png",
-       f6,
-       width = 12, height = 8)
+f3b <- ggarrange(plotlist = dac_map, nrow = 1)
 
 
 select_var <- list(c("peer_effect","home_age"),
@@ -458,261 +268,36 @@ for(i in 1:5){
 }
 
 
-### combined burden
-### adoption change (final future adoption including all scenario optimistics - future adoption)
-# PV: -4 MWh/HHyr
-# EV: 2 MWh/HHyr
-# HP: 2 MWh/HHyr
-
-dac_tract <- read_csv(file = "../DAC/data/DAC_CA_censustract.csv") %>%
-  dplyr::select(GEOID, sample)
-
-
-burden <- effect[[9]] %>% # PS optimistic
-  left_join(mrp %>% 
-              dplyr::select(GEOID, future_PS_0), by = "GEOID") %>% 
-  mutate(PV_increase = (Final - future_PS_0)*-4) %>% 
-  dplyr::select(GEOID, PV_increase) %>% 
-  left_join(effect[[3]] %>% # EV optimistic
-              left_join(mrp %>% 
-                          dplyr::select(GEOID, future_EV_0), by = "GEOID") %>% 
-              mutate(EV_increase = (Final - future_EV_0)*2) %>% 
-              dplyr::select(GEOID, EV_increase),
-            by = "GEOID") %>% 
-  left_join(effect[[5]] %>% # HP optimistic
-              left_join(mrp %>% 
-                          dplyr::select(GEOID, future_HP_0), by = "GEOID") %>% 
-              mutate(HP_increase = (Final - future_HP_0)*2) %>% 
-              dplyr::select(GEOID, HP_increase),
-            by = "GEOID") %>% 
-  mutate(increase = PV_increase+EV_increase+HP_increase) %>% 
-  left_join(CA_t %>% 
-              st_drop_geometry() %>% 
-              dplyr::select(GEOID, estimate)) %>% 
-  mutate(demand = increase*estimate/1000) # in GWh
-
-
-f7a <- CA_t %>% 
-  dplyr::select(GEOID) %>% 
-  left_join(burden, by = "GEOID") %>% 
-  ggplot() +
-  geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = demand), color = NA, size = 0.3) +
-  scale_fill_viridis_c(option = "magma", name = "Grid demand\nincrease (GWh)") +
-  new_scale_fill() +
-  
-  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
-  geom_sf(data = dac_sf %>% 
-            filter(sample == 1) %>% 
-            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
-  scale_fill_manual(values = c("DAC" = "gray80"),
-                    name = "") +
-  
-  theme_minimal() +
-  # scale_fill_distiller(palette = "RdBu", direction = -1) +
-
-  labs(title = "Impact on residential demand by tract", fill = "Grid demand\nincrease (GWh)") +
-  theme(legend.position = "right",
-        # legend.text=element_text(size=6),
-        # legend.key.size = unit(0.3, 'cm'),
-        strip.text = element_text(),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank(),
-        plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = 0))
-
-f7b <- burden %>% 
-  left_join(dac_tract, by = "GEOID") %>% 
-  group_by(sample) %>%
-  summarise(mean_increase = mean(demand, na.rm = T), .groups = "drop") %>%
-  mutate(DAC = ifelse(sample == 0, "Non-DAC", "DAC"),
-         DAC = factor(DAC, levels = c("DAC", "Non-DAC"))) %>% 
-  ggplot(aes(x = DAC, y = mean_increase, fill = DAC)) +
-  geom_col(width = 0.6, show.legend = FALSE) +
-  geom_text(aes(label = round(mean_increase, 3)), vjust = -0.5, size = 4) +
-  scale_fill_manual(values = c("DAC" = "#E66101", "Non-DAC" = "#5E9ACF")) + 
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-  labs(
-    title = "Grid demand increase",
-    x = "",
-    y = "Mean increase (GWh/tract)"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    axis.text.x = element_text(angle = 0, hjust = 0.5)
-  )
-
-f7c <- CA_t %>% 
-  dplyr::select(GEOID) %>% 
-  left_join(burden, by = "GEOID") %>% 
-  ggplot() +
-  geom_sf(fill = "white", color = "gray0") + # US border
-  geom_sf(aes(fill = increase/7*100), color = NA, size = 0.3) +
-  scale_fill_viridis_c(option = "magma", name = "Grid demand\nincrease (%)") +
-  new_scale_fill() +
-  
-  geom_sf(data = CA_c, fill = NA, color = "white", linewidth = 0.05) +
-  geom_sf(data = dac_sf %>% 
-            filter(sample == 1) %>% 
-            mutate(sample = "DAC"), aes(fill = sample), color = NA, alpha = 0.3) +
-  scale_fill_manual(values = c("DAC" = "gray80"),
-                    name = "") +
-  
-  theme_minimal() +
-  
-  labs(title = "Impact on demand by household", fill = "Grid demand\nincrease (%)") +
-  theme(legend.position = "right",
-        # legend.text=element_text(size=6),
-        # legend.key.size = unit(0.3, 'cm'),
-        strip.text = element_text(),
-        axis.text.x = element_blank(),
-        axis.text.y = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.grid.major = element_blank(),
-        plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = 0))
-
-
-
-f7d <- burden_mean %>% 
-  left_join(dac_tract, by = "GEOID") %>% 
-  group_by(sample) %>%
-  summarise(mean_increase = mean(increase, na.rm = T), .groups = "drop") %>%
-  mutate(DAC = ifelse(sample == 0, "Non-DAC", "DAC"),
-         DAC = factor(DAC, levels = c("DAC", "Non-DAC"))) %>% 
-  ggplot(aes(x = DAC, y = mean_increase/7*100, fill = DAC)) +
-  geom_col(width = 0.6, show.legend = FALSE) +
-  geom_text(aes(label = round(mean_increase/7*100, 1)), vjust = -0.5, size = 4) +
-  scale_fill_manual(values = c("DAC" = "#E66101", "Non-DAC" = "#5E9ACF")) + 
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-  labs(
-    title = "",
-    x = "",
-    y = "Mean increase (%)"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    axis.text.x = element_text(angle = 0, hjust = 0.5)
-  )
-
-
-### moran's I
-df_clean <- CA_t[!st_is_empty(CA_t), ] %>% 
-  left_join(burden, by = "GEOID") %>%
-  filter(!is.na(increase))
-    
-    # Create spatial weights for this subset
-    nb <- poly2nb(df_clean, queen = TRUE)
-    lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
-    
-    # Run Moran's I permutation test
-    test_a <- moran.mc(df_clean$increase, listw = lw, nsim = 999, zero.policy = TRUE)
-    test_b <- moran.mc(df_clean$demand, listw = lw, nsim = 999, zero.policy = TRUE)
-    
-
-f7e <- moran_by_class %>% 
-  separate(class, into = c("tech", "scenario"), sep = "_", convert = TRUE) %>% 
-  filter(scenario == "Optimistic") %>% 
-  dplyr::select(-note, -scenario) %>% 
-  na.omit() %>% 
-  rbind(
-    tibble(
-      tech = c("Demand/HH", "Demand"),
-      SI = c(test_a$statistic, test_b$statistic),
-      p_value = c(test_a$p.value, test_b$p.value)
-    )
-  ) %>% 
-  mutate(tech = factor(tech, levels = c("Demand", "Demand/HH", "PS","PV","IC","HP","EV"))) %>% 
-  ggplot(aes(x = tech, y = SI)) +
-  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
-  geom_text(aes(label = round(SI, 2)), 
-            position = position_dodge(width = 0.7), 
-            vjust = -0.5, size = 3.5) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-  labs(
-    title = "Spatial inequality",
-    x = "",
-    y = "Moran's I",
-    fill = "Technology"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
-    axis.title = element_text(size = 12),
-    plot.title = element_text(face = "bold", size = 16),
-    legend.text = element_text(size = 10),
-    legend.position = "bottom",
-    
-    strip.placement = "outside", # Keep labels on the outside
-    strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
-    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
-    
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
-  ) 
-
-
-f7 <- ggarrange(f7a, ggarrange(f7b,f7d, nrow = 1), f7c, f7e, nrow = 2, ncol = 2, widths = c(1,0.6))
-
-ggsave("./fig/f7.png",
-       f7,
-       width = 12, height = 10)
-  
-  
-
-f6b <- moran_by_class %>% 
-  mutate(area = "State") %>% 
-  rbind(
-    moran_by_la %>% 
-      mutate(area = "LA"),
-    moran_by_bay %>% 
-      mutate(area = "Bay")
-  ) %>% 
-  filter(!is.na(SI)) %>%
-  separate(class, into = c("tech", "scenario"), sep = "_", convert = TRUE) %>%
-  mutate(tech = fct_reorder(tech, SI)) %>%
-  ggplot(aes(x = scenario, y = SI, fill = tech)) +
-  geom_col(width = 0.6, position = position_dodge(width = 0.7)) +
-  geom_text(aes(label = round(SI, 2)), 
-            position = position_dodge(width = 0.7), 
-            vjust = -0.5, size = 3.5) +
-  facet_wrap(~area, nrow = 3) +
-  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-  labs(
-    title = "Spatial inequality",
-    x = "",
-    y = "Moran's I",
-    fill = "Technology"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    axis.text = element_text(size = 12),
-    axis.title = element_text(size = 12),
-    plot.title = element_text(face = "bold", size = 16),
-    legend.text = element_text(size = 10),
-    legend.position = "bottom",
-    
-    strip.placement = "outside", # Keep labels on the outside
-    strip.background =element_rect(fill="gray22",color="gray22"),
-    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
-    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
-    
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank()
-  ) 
-
-
-
-
 ### average adoption 
-d1 <- data %>% 
-  summarise(across(
-    .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
-    .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
-  )) %>% 
+# d1 <- data %>% 
+#   summarise(across(
+#     .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
+#     .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
+#   )) %>% 
+#   gather(key, adoption) %>% 
+#   mutate(
+#     tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
+#     scenario = case_when(
+#       !str_detect(key, "^future") ~ "current",
+#       str_detect(key, "(_\\d{1}$)|(PV$)") ~ "Future",
+#       str_detect(key, "_\\d{2}$") ~ "Lsubsidy",
+#       str_detect(key, "_\\d{3}$") ~ "Hsubsidy",
+#       TRUE ~ "future"  # fallback for keys like "future_PV"
+#     )
+#   ) %>% 
+#   dplyr::select(-key) %>%
+#   pivot_wider(names_from = scenario, values_from = adoption) %>% 
+#   mutate(
+#     future = Future - current,
+#     low.subsidy = Lsubsidy - Future,
+#     high.subsidy = Hsubsidy - Lsubsidy
+#   ) %>% 
+#   dplyr::select(-Future,-Lsubsidy,-Hsubsidy)
+
+
+### scenario waterfall
+d1 <- mrp_mean[-c(18,19),] %>% # using MRP mean
+          pivot_wider(names_from = name, values_from = V1) %>% 
   gather(key, adoption) %>% 
   mutate(
     tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
@@ -731,7 +316,8 @@ d1 <- data %>%
     low.subsidy = Lsubsidy - Future,
     high.subsidy = Hsubsidy - Lsubsidy
   ) %>% 
-  dplyr::select(-Future,-Lsubsidy,-Hsubsidy)
+  dplyr::select(-Future,-Lsubsidy,-Hsubsidy) %>% 
+  filter(tech != "PV")
 
 
 # mrp %>% 
@@ -763,13 +349,13 @@ rates <- list(c(0,0.2,-0.14,-0.23),
 result <- data.frame()
 for(k in 1:5){
   
-  b_ev <- mreg(read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+  ### without sum contrasts for scenario variables
+  b_ev <- mreg(data = read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
                  data_process(ev = c("Fully electric")) %>% 
                  data_clean(1), 
                remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
                           "education","employment"),
-               i = k,
-               future = fut[[k]][1])
+               i = k)
 
   pattern <- paste(select_var[[k]], collapse = "|")
   
@@ -855,9 +441,9 @@ hlines <- tibble::tribble(
 
 error_data_opt <- data.frame(tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
                               x = c(7,9,6,7), 
-                              ymin = c(7,12,12,13), 
-                              ymax = c(13,35,39,28),
-                              text = c(7,23,27,15),
+                              ymin = c(3.5,12,11.5,10.5), 
+                              ymax = c(15,34.8,36.5,25.3),
+                              text = c(7,23,25,15),
                               xmin = c(4.5,6,4,4.7)) %>% 
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 
@@ -951,8 +537,7 @@ for(k in 1:5){
                  data_clean(1), 
                remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
                           "education","employment"),
-               i = k,
-               future = fut[[k]][2])
+               i = k)
   
   pattern <- paste(select_var[[k]], collapse = "|")
   
@@ -1034,9 +619,9 @@ hlines <- tibble::tribble(
 
 error_data_pess <- data.frame(tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
                               x = c(6,8,5,6), 
-                              ymin = c(7,12,12,13), 
-                              ymax = c(9.7,24,20,16),
-                              text = c(3,11,8,3),
+                              ymin = c(3.8,12.2,11.8,10.5), 
+                              ymax = c(11,24,19.1,13.4),
+                              text = c(7,12,7,3),
                               xmin = c(4.2,5.5,3.5,4.2)) %>% 
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 
@@ -1112,11 +697,10 @@ f2 <- ggarrange(opt_result, pess_result, nrow = 2,
           label.y = 1,        # Adjust vertical position of labels
           font.label = list(size = 14, face = "bold")
           )
+
 ggsave("./fig/f2.png",
        f2,
        width = 12, height = 12)
-
-
 
 
 ### opt vs. pessi plots
@@ -1166,13 +750,8 @@ ggsave("./fig/com_op.png",
 
 
 ### DAC 
-d1_dac <- data %>% 
-  group_by(dac) %>% 
-  summarise(across(
-    .cols = all_of(names(.)[str_detect(names(.), "PV|EV|HP|IC|PS")& !str_detect(names(.), "peer")]),
-    .fns = ~ weighted.mean(.x, wt_ca, na.rm = TRUE)
-  )) %>% 
-  gather(key, adoption, -dac) %>% 
+d1_dac <- mrp_mean_dac %>% 
+  gather(key, adoption, -sample) %>% 
   mutate(
     tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
     scenario = case_when(
@@ -1191,7 +770,8 @@ d1_dac <- data %>%
     high.subsidy = Hsubsidy - Lsubsidy
   ) %>% 
   dplyr::select(-Future,-Lsubsidy,-Hsubsidy) %>% 
-  mutate(dac = ifelse(dac == "0", "Non_DAC", "DAC"))
+  mutate(dac = ifelse(sample == "0", "Non_DAC", "DAC")) %>% 
+  filter(tech != "PV")
 
 
 ### optimistic scenarios
@@ -1211,6 +791,7 @@ rates <- list(c(0,0.2,-0.14,-0.23),
 result_dac <- data.frame()
 for(k in 1:5){
   
+  ### scenario variable impact by DAC - random slope model 
   b_ev <- mreg_dac(read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
                  data_process(ev = c("Fully electric")) %>% 
                  data_clean(1), 
@@ -1218,10 +799,9 @@ for(k in 1:5){
                remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
                           "education","employment"),
                scenario = select_scene[[k]],
-               i = k,
-               future = fut[[k]][1])
+               i = k) # variable effects and SE 
 
-  
+
   df <- b_ev[[1]] %>% t() %>% 
     as.data.frame() %>% 
     dplyr::slice(-1) %>% 
@@ -1256,7 +836,8 @@ for(k in 1:5){
 
 
 df_dac <- d1_dac %>% 
-  left_join(result_dac, by = c("tech", "dac")) 
+  left_join(result_dac, by = c("tech", "dac")) %>% 
+  dplyr::select(-sample)
 
 
 df_long <- df_dac %>%
@@ -1316,9 +897,9 @@ hlines <- tibble::tribble(
 error_data_dac <- data.frame(dac = "Non_DAC",
                              tech = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves"), 
                                                x = c(8,9,7,8), 
-                                               ymin = c(11.3,24.3,37.3,25.9), 
-                                               ymax = c(14.3,45,40.7,29.5),
-                                               xmin = c(7.5,8.5,7.5,7.5)) %>% 
+                                               ymin = c(13.5,25,33.7,26.5), 
+                                               ymax = c(16.5,44.5,38.7,25),
+                                               xmin = c(8.5,8.5,7.5,8.5)) %>% 
   mutate(text = round(ymax - ymin, 1)) %>% 
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 

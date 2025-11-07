@@ -15,7 +15,7 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 3. `MRP.R`: Run to validate the survey data against MRP estimates.  
 4. `ML.R`: Run to identify the relative importance of the variables using machine learning algorithms.  
 5. `subsidy.R`, `peer_effect.R`, `spatial.R`: Core analysis scripts modeling individual factors (subsidies, social influence, geography).  
-6. `scenario.R`: Run last to build predictive scenarios.
+6. `scenario.R`: Run to build predictive scenarios.
 
 
 ---

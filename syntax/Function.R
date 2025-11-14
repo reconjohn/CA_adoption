@@ -204,7 +204,7 @@ data_process <- function(data, ev_type){
            IC = ifelse(is.na(IC), 0, IC)) %>% 
     
     dplyr::select(ExternalReference,climatezone,dac,age,
-                  gender,income,education,race,ideology,pid,born_us,employment,workfromhome, # demo
+                  gender,income,education,race,ideology,pid,pid_dem,pid_ind,pid_rep,born_us,employment,workfromhome, # demo
                   home_type,household_numpeople,home_own,home_area,home_age, # housing
                   
                   # PV
@@ -216,6 +216,7 @@ data_process <- function(data, ev_type){
                   
                   # EV
                   vehicle_1_miles, 
+                  vehicle_2_miles, 
                   vehicle_charging_own,parkingspot,charging_install,charging_work,
                   charging_5mile_non_1,charging_5mile_non_2,
                   charging_5mile_own_1,charging_5mile_own_2,
@@ -224,6 +225,7 @@ data_process <- function(data, ev_type){
                   rangeanxiety,
                   vehicle_next_used,vehicle_next_when,vehicle_next_fuel,
                   vehicle_1_class,
+                  vehicle_num,
                   
                   # HP
                   primary_heating_type,
@@ -232,6 +234,7 @@ data_process <- function(data, ev_type){
                   replan_heat_owner,replan_noheat_owner,replan_heat_renter,replan_noheat_renter,
                   replan_cool_owner,replan_cool_renter,replan_nocool_owner,replan_nocool_renter,
                   therm_summer,therm_winter,
+                  ac_unit_number, 
                   
                   # IC
                   kitchen_range_type,induction_direct,
@@ -242,10 +245,19 @@ data_process <- function(data, ev_type){
                   elec_home_cost_1,elec_home_cost_2,elec_home_cost_3,elec_home_cost_4, # EV, IC and HP, PV
                   upfrontpayback,
                   
+                  # costs
+                  cost_fuel_winter, cost_electric_winter, cost_combo_winter, cost_electric_summer, cost_combo_summer, 
+                  lowincome_sup, 
+                  
                   # resilience
                   outage_impact, 
                   outage_generatorown,
                   outage_generatorplan,
+                  elec_avail, hvac_avail,
+                  ccinsure_owner,
+                  ccinsure_renter,
+                  ccinsure_lost,
+
                   
                   # peer effect
                   elec_home_others_1,elec_home_others_2,elec_home_others_3, elec_home_others_4, # EV, IC and HP, PV
@@ -270,7 +282,7 @@ data_process <- function(data, ev_type){
                   tractid
     ) %>% 
     mutate(solstor_wtp_dv = ifelse(str_detect(solstor_wtp_dv,"without"), "always",
-                                   ifelse(str_detect(solstor_wtp_dv,"never"), "never",solstor_wtp_dv)),
+                                   ifelse(str_detect(solstor_wtp_dv,"NOT"), "never",solstor_wtp_dv)),
            solstor_wtp_payback = ifelse(str_detect(solstor_wtp_payback,"if"), "always",
                                         ifelse(str_detect(solstor_wtp_payback,"NOT"), "never",solstor_wtp_payback)),
            ev_wtp_pc = ifelse(str_detect(ev_wtp_pc,"without"), "always",
@@ -324,12 +336,13 @@ data_cl <- function(data, further = NULL){
                                       ifelse(employment == "Homemaker", "Homemaker",
                                              ifelse(employment == "Retired", "Retired", 
                                                     ifelse(str_detect(employment, "Unemployed"), "Unemployed","Others"))))),
+
            # employment = ifelse(str_detect(employment, "full|part") & str_detect(workfromhome, "NOT"), "Work full",
-           #                     ifelse(str_detect(employment, "full|part") & str_detect(workfromhome, "Always"), "Work home", 
+           #                     ifelse(str_detect(employment, "full|part") & str_detect(workfromhome, "Always"), "Work home",
            #                            ifelse(str_detect(employment, "full|part"), "Work occasion",
            # 
            #                            ifelse(employment == "Homemaker", "Homemaker",
-           #                                   ifelse(employment == "Retired", "Retired", 
+           #                                   ifelse(employment == "Retired", "Retired",
            #                                          ifelse(str_detect(employment, "Unemployed"), "Unemployed","Others")))))),
            # data$employment %>% unique()
            # data$born_us %>% table()
@@ -417,14 +430,14 @@ data_cl <- function(data, further = NULL){
            
            rangeanxiety = case_when(rangeanxiety == "More than 400 miles (exceeding the typical gas vehicle range)"~ 450,
                                     rangeanxiety == "301 - 400 miles (matching the typical mid-size or sedan gas vehicle range)"~ 350,
-                                    rangeanxiety == "I can't decide until I know more about the location of chargers"~ 300,
+                                    rangeanxiety == "I can't decide until I know more about the location of chargers"~ NA_real_,
                                     rangeanxiety == "200 - 300 miles (comparable to a tank of gas for compact gas vehicles, with weekly charging for most users)"~ 250,
                                     rangeanxiety == "Less than 200 miles (sufficient for daily commuting, occasional charging needed)"~ 150,
                                     TRUE ~ NA_real_),        
-           rangeanxiety = ifelse(rangeanxiety == 300 & vehicle_1_class == "Compact", 150,
-                                 ifelse(rangeanxiety == 300 & vehicle_1_class == "Sedan", 250,
-                                        ifelse(rangeanxiety == 300 & vehicle_1_class == "Minivan", 350,
-                                               ifelse(rangeanxiety == 300 & vehicle_1_class == "Truck", 450,rangeanxiety)))),
+           # rangeanxiety = ifelse(rangeanxiety == 300 & vehicle_1_class == "Compact", 150,
+           #                       ifelse(rangeanxiety == 300 & vehicle_1_class == "Sedan", 250,
+           #                              ifelse(rangeanxiety == 300 & vehicle_1_class == "Minivan", 350,
+           #                                     ifelse(rangeanxiety == 300 & vehicle_1_class == "Truck", 450,rangeanxiety)))),
            
            # rangeanxiety = factor(rangeanxiety, levels = data$rangeanxiety %>% unique() %>% .[c(5,2,4,3,1)]) %>% 
            #   as.numeric(),
@@ -443,27 +456,27 @@ data_cl <- function(data, further = NULL){
            primary_cooling_type  = ifelse(primary_cooling_type  == "Central air-conditioning", "Central", 
                                           ifelse(primary_cooling_type  == "Air-conditioning unit(s) in specific room(s)", "Room",
                                                  ifelse(primary_cooling_type  == "I do not have air-conditioning in my home", "None", "Others"))),
-           # heatpump_direct = ifelse(heatpump_direct == "I don't know", NA, heatpump_direct),
-           heatpump_direct = factor(heatpump_direct, levels = data$heatpump_direct %>% unique() %>% .[c(1,4,5,2)]) %>% 
+           heatpump_direct = ifelse(heatpump_direct == "I don't know", NA, heatpump_direct),
+           heatpump_direct = factor(heatpump_direct, levels = data$heatpump_direct %>% unique() %>% .[c(1,5,2)]) %>% 
              as.numeric(),
            heating_plan = coalesce(replan_heat_owner,replan_noheat_owner,replan_heat_renter,replan_noheat_renter),
-           heating_plan = ifelse(heating_plan == "In the next 1 to 2 years", 5, 
-                                 ifelse(heating_plan == "In the next 3 to 5 years", 4, 
-                                        ifelse(heating_plan == "More than 5 years from now", 3, 
-                                               ifelse(heating_plan == "Never", 1, 2)))),
+           heating_plan = ifelse(heating_plan == "In the next 1 to 2 years", 4, 
+                                 ifelse(heating_plan == "In the next 3 to 5 years", 3, 
+                                        ifelse(heating_plan == "More than 5 years from now", 2, 
+                                               ifelse(heating_plan == "Never", 1, NA)))),
            cooling_plan = coalesce(replan_cool_owner,replan_nocool_owner,replan_cool_renter,replan_nocool_renter),
-           cooling_plan = ifelse(cooling_plan == "In the next 1 to 2 years", 5, 
-                                 ifelse(cooling_plan == "In the next 3 to 5 years", 4, 
-                                        ifelse(cooling_plan == "More than 5 years from now", 3, 
-                                               ifelse(cooling_plan == "Never", 1, 2)))),
-           therm_summer = ifelse(therm_summer %in% c("I do not have a thermostat in my home",
-                                                     "I do not use my thermostat during the summer"), 0,1),
-           therm_winter = ifelse(therm_winter %in% c("I do not have a thermostat in my home",
-                                                     "I do not use my thermostat during the winter"), 0,1),
+           cooling_plan = ifelse(cooling_plan == "In the next 1 to 2 years", 4, 
+                                 ifelse(cooling_plan == "In the next 3 to 5 years", 3, 
+                                        ifelse(cooling_plan == "More than 5 years from now", 2, 
+                                               ifelse(cooling_plan == "Never", 1, NA)))),
+           # therm_summer = ifelse(therm_summer %in% c("I do not have a thermostat in my home",
+           #                                           "I do not use my thermostat during the summer"), 0,1),
+           # therm_winter = ifelse(therm_winter %in% c("I do not have a thermostat in my home",
+           #                                           "I do not use my thermostat during the winter"), 0,1),
            
            # IC
-           # induction_direct = ifelse(induction_direct == "I don't know", NA, induction_direct),
-           induction_direct = factor(induction_direct, levels = data$induction_direct %>% unique() %>% .[c(1,5,4,2)]) %>% 
+           induction_direct = ifelse(induction_direct == "I don't know", NA, induction_direct),
+           induction_direct = factor(induction_direct, levels = data$induction_direct %>% unique() %>% .[c(1,4,2)]) %>% 
              as.numeric(),
            kitchen_range_type = ifelse(kitchen_range_type  == "Electric coil", "Elec_coil", 
                                        ifelse(kitchen_range_type  == "Natural gas", "Natural_gas",
@@ -488,16 +501,16 @@ data_cl <- function(data, further = NULL){
            
            # electrification = factor(natgas_ypccc, levels = data$natgas_ypccc %>% unique() %>% .[c(4,2,3)]) %>%
            #   as.numeric(),
-           elec_home_cost_1 = ifelse(elec_home_cost_1 == "I don't know", "No change in cost", elec_home_cost_1),
+           elec_home_cost_1 = ifelse(elec_home_cost_1 == "I don't know", NA, elec_home_cost_1),
            elec_home_cost_EV = factor(elec_home_cost_1, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
-           elec_home_cost_2 = ifelse(elec_home_cost_2 == "I don't know", "No change in cost", elec_home_cost_2),
+           elec_home_cost_2 = ifelse(elec_home_cost_2 == "I don't know", NA, elec_home_cost_2),
            elec_home_cost_IC = factor(elec_home_cost_2, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
-           elec_home_cost_3 = ifelse(elec_home_cost_3 == "I don't know", "No change in cost", elec_home_cost_3),
+           elec_home_cost_3 = ifelse(elec_home_cost_3 == "I don't know", NA, elec_home_cost_3),
            elec_home_cost_HP = factor(elec_home_cost_3, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
-           elec_home_cost_4 = ifelse(elec_home_cost_4 == "I don't know", "No change in cost", elec_home_cost_4),
+           elec_home_cost_4 = ifelse(elec_home_cost_4 == "I don't know", NA, elec_home_cost_4),
            elec_home_cost_PV = factor(elec_home_cost_4, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
            upfrontpayback = ifelse(upfrontpayback == "I would prefer an upfront subsidy", 1, 0),
@@ -626,7 +639,7 @@ data_cl <- function(data, further = NULL){
            #   as.numeric(),
            
            # climate change 
-           yale_worried = factor(yale_worried, levels = data$yale_worried %>% unique() %>% .[c(4,3,2,1)]) %>%
+           yale_worried = factor(yale_worried, levels = data$yale_worried %>% unique() %>% .[c(4,2,3,1)]) %>%
              as.numeric(),
            cclive = factor(cclive, levels = data$cclive %>% unique() %>% .[c(2,3,4,1)]) %>%
              as.numeric(),
@@ -636,7 +649,185 @@ data_cl <- function(data, further = NULL){
              as.numeric(),
            homevac = factor(homevac, levels = data$homevac %>% unique() %>% .[c(2,1,3)]) %>%
              as.numeric(),
-           ccmove_where = ifelse(ccmove_where == "Move to a different state", 1, 0))
+           ccmove_where = ifelse(ccmove_where == "Move to a different state", 1, 0),
+           
+           ### additional variables
+           cost_fuel_winter = case_when(cost_fuel_winter == "$0-25 per month" ~ 12.5,
+                                        cost_fuel_winter == "$25-50 per month" ~ 37.5,
+                                        cost_fuel_winter == "$50-100 per month" ~ 75,
+                                        cost_fuel_winter == "$100-199 per month" ~ 150,
+                                        cost_fuel_winter == "$200-299 per month" ~ 250,
+                                        cost_fuel_winter == "$300-399 per month" ~ 350,
+                                        cost_fuel_winter == "$400-499 per month" ~ 450,
+                                        cost_fuel_winter == "$500-599 per month" ~ 550,
+                                        cost_fuel_winter == "$600-699 per month" ~ 650,
+                                        cost_fuel_winter == "$700-799 per month" ~ 750,
+                                        cost_fuel_winter == "$800 or more per month" ~ 850,
+                                        cost_fuel_winter == "I do not know or remember" ~ NA),
+           cost_electric_winter = case_when(cost_electric_winter == "$0-25 per month" ~ 12.5,
+                                            cost_electric_winter == "$25-50 per month" ~ 37.5,
+                                            cost_electric_winter == "$50-100 per month" ~ 75,
+                                            cost_electric_winter == "$100-199 per month" ~ 150,
+                                            cost_electric_winter == "$200-299 per month" ~ 250,
+                                            cost_electric_winter == "$300-399 per month" ~ 350,
+                                            cost_electric_winter == "$400-499 per month" ~ 450,
+                                            cost_electric_winter == "$500-599 per month" ~ 550,
+                                            cost_electric_winter == "$600-699 per month" ~ 650,
+                                            cost_electric_winter == "$700-799 per month" ~ 750,
+                                            cost_electric_winter == "$800 or more per month" ~ 850,
+                                            cost_electric_winter == "I do not know or remember" ~ NA),
+           
+           cost_combo_winter_summed = cost_fuel_winter + cost_electric_winter,
+           
+           cost_combo_winter = case_when(cost_combo_winter == "$0-25 per month" ~ 12.5,
+                                         cost_combo_winter == "$25-50 per month" ~ 37.5,
+                                         cost_combo_winter == "$50-100 per month" ~ 75,
+                                         cost_combo_winter == "$100-199 per month" ~ 150,
+                                         cost_combo_winter == "$200-299 per month" ~ 250,
+                                         cost_combo_winter == "$300-399 per month" ~ 350,
+                                         cost_combo_winter == "$400-499 per month" ~ 450,
+                                         cost_combo_winter == "$500-599 per month" ~ 550,
+                                         cost_combo_winter == "$600-699 per month" ~ 650,
+                                         cost_combo_winter == "$700-799 per month" ~ 750,
+                                         cost_combo_winter == "$800 or more per month" ~ 850,
+                                         cost_combo_winter == "I do not know or remember" ~ NA),
+           cost_combo_winter_final = coalesce(cost_combo_winter,cost_combo_winter_summed),
+           
+           ## summer energy costs
+           cost_combo_summer_final = coalesce(cost_electric_summer, cost_combo_summer),
+           cost_combo_summer_final = case_when(cost_combo_summer_final == "$0-25 per month" ~ 12.5,
+                                               cost_combo_summer_final == "$25-50 per month" ~ 37.5,
+                                               cost_combo_summer_final == "$50-100 per month" ~ 75,
+                                               cost_combo_summer_final == "$100-199 per month" ~ 150,
+                                               cost_combo_summer_final == "$200-299 per month" ~ 250,
+                                               cost_combo_summer_final == "$300-399 per month" ~ 350,
+                                               cost_combo_summer_final == "$400-499 per month" ~ 450,
+                                               cost_combo_summer_final == "$500-599 per month" ~ 550,
+                                               cost_combo_summer_final == "$600-699 per month" ~ 650,
+                                               cost_combo_summer_final == "$700-799 per month" ~ 750,
+                                               cost_combo_summer_final == "$800 or more per month" ~ 850,
+                                               cost_combo_summer_final == "I do not know or remember" ~ NA),
+           
+           ## age
+           age = case_when(age == "18 - 24" ~ 21,
+                           age == "25 - 34" ~ 30,
+                           age == "35 - 44" ~ 40,
+                           age == "45 - 54" ~ 50,
+                           age == "55 - 64" ~ 60,
+                           age == "65 - 74" ~ 70,
+                           age == "75 - 84" ~ 80,
+                           age == "85 or older" ~ 90),
+           
+           ## gender
+           gender = case_when(gender == "I want to self-identify" ~ "Other",
+                              .default = gender),
+           
+           ## home_own
+           home_own = ifelse(home_own == "Yes", 1, 0), 
+           
+           ## ac_unit_number
+           ac_unit_number = case_when(ac_unit_number == "1" ~ 1,
+                                      ac_unit_number == "2" ~ 2,
+                                      ac_unit_number == "3" ~ 3,
+                                      ac_unit_number == "4" ~ 4,
+                                      ac_unit_number == "5 or more" ~ 5,
+                                      .default = NA),
+           
+           # vehicle_num
+           vehicle_num = case_when(vehicle_num == "1" ~ 1,
+                                   vehicle_num == "2" ~ 2,
+                                   vehicle_num == "3" ~ 3,
+                                   vehicle_num == "4 or more vehicles" ~ 4,
+                                   .default = NA),
+           
+           # vehicle_2_miles
+           vehicle_2_miles = case_when(vehicle_2_miles == "Less than 2,500 miles per year"~ 1250,
+                                       vehicle_2_miles == "2,500 - 4,999 miles per year"~ 3750,
+                                       vehicle_2_miles == "5,000 - 7,499 miles per year"~ 6250,
+                                       vehicle_2_miles == "7,500 - 9,999 miles per year"~ 8750,
+                                       vehicle_2_miles == "10,000 - 12,499 miles per year"~ 11250,
+                                       vehicle_2_miles == "12,500 - 14,999 miles per year"~ 13750,
+                                       vehicle_2_miles == "15,000 - 17,499 miles per year"~ 16250,
+                                       vehicle_2_miles == "17,500 - 20,000 miles per year"~ 18750,
+                                       vehicle_2_miles == "More than 20,000 miles per year"~ 25000,
+                                       .default = 0),
+           
+           ## vehicle_comb_miles
+           vehicle_comb_miles = vehicle_1_miles + vehicle_2_miles,
+           
+           ## fastcharge_likely
+           fastcharge_likely = case_when(fastcharge_likely == "No, not more likely at all"~ 1,
+                                         fastcharge_likely == "Only a little more likely" ~ 2,
+                                         fastcharge_likely == "Somewhat more likely" ~ 3,
+                                         fastcharge_likely == "Much more likely" ~ 4,
+                                         .default = NA),
+           
+           # lowincome_sup
+           lowincome_sup = case_when(lowincome_sup == "Yes"~ 1,
+                                     lowincome_sup == "No" ~ 0,
+                                     lowincome_sup == "I don't know" ~ 0,
+                                     .default = NA),
+           
+           # elec_avail 
+           elec_avail = case_when(elec_avail == "Very confident"~ 4,
+                                  elec_avail == "Somewhat confident" ~ 3,
+                                  elec_avail == "Not too confident" ~ 2,
+                                  elec_avail == "Not confident at all" ~ 1,
+                                  .default = NA),
+           
+           # hvac_avail
+           hvac_avail = case_when(hvac_avail == "Very confident"~ 4,
+                                  hvac_avail == "Somewhat confident" ~ 3,
+                                  hvac_avail == "Not too confident" ~ 2,
+                                  hvac_avail == "Not confident at all" ~ 1,
+                                  .default = NA),
+           
+           # ccinsure_owner
+           ccinsure_owner = ifelse(ccinsure_owner == "Yes", 1, 0), 
+           
+           # ccinsure_renter
+           ccinsure_renter = ifelse(ccinsure_renter == "Yes", 1, 0), 
+           
+           ## ccinsure_both
+           ccinsure_both = coalesce(ccinsure_owner, ccinsure_renter),
+           
+           # ccinsure_lost
+           ccinsure_lost = ifelse(ccinsure_lost == "Yes", 1, 0), 
+           
+           # pid
+           pid_composite = case_when(pid == "Democrat" & pid_dem == "Strong Democrat" ~ 1,
+                                     pid == "Democrat" & pid_dem == "Not a very strong Democrat" ~ 2,
+                                     pid == "Independent" & pid_ind == "Closer to the Democratic Party" ~ 3,
+                                     pid == "Something else" & pid_ind == "Closer to the Democratic Party" ~ 3,
+                                     pid == "Independent" & pid_ind == "No, neither party" ~ 4,
+                                     pid == "Something else" & pid_ind == "No, neither party" ~ 4,
+                                     pid == "Something else" & pid_ind == "Closer to the Republican Party" ~ 5,
+                                     pid == "Independent" & pid_ind == "Closer to the Republican Party" ~ 5,
+                                     pid == "Republican" & pid_rep == "Not a very strong Republican" ~ 6,
+                                     pid == "Republican" & pid_rep == "Strong Republican" ~ 7,
+                                     pid == "I am not eligible to vote" ~ NA, 
+                                     .default = NA),
+           
+           ## thermostat use:
+           therm_summer = case_when(str_detect(therm_summer, "60|61|62") ~ 1,
+                                    str_detect(therm_summer, "63|64|65") ~ 2,
+                                    str_detect(therm_summer, "66|67|68") ~ 3,
+                                    str_detect(therm_summer, "69|70|71") ~ 4,
+                                    str_detect(therm_summer, "72|73|74") ~ 5,
+                                    str_detect(therm_summer, "75|76|77") ~ 6,
+                                    str_detect(therm_summer, "78|79|80|I do not") ~ 7,
+                                    .default = NA),
+           
+           therm_winter = case_when(str_detect(therm_winter, "60|61|62|I do not") ~ 1,
+                                    str_detect(therm_winter, "63|64|65") ~ 2,
+                                    str_detect(therm_winter, "66|67|68") ~ 3,
+                                    str_detect(therm_winter, "69|70|71") ~ 4,
+                                    str_detect(therm_winter, "72|73|74") ~ 5,
+                                    str_detect(therm_winter, "75|76|77") ~ 6,
+                                    str_detect(therm_winter, "78|79|80") ~ 7,
+                                    .default = NA)
+           )
+
 }
 
 
@@ -695,32 +886,47 @@ data_clean <- function(data, further = NULL){
                                (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 12700) |
                                PS == 1, 1, 0),
       
-      future_HP_0 = ifelse(heatpump_direct > 2 & 
+      future_HP_0 = ifelse(heatpump_direct > 1 & 
                              heatpump_wtp_pc == 0| HP == 1, 1, 0),
-      future_HP_30 = ifelse(heatpump_direct > 2 & 
+      future_HP_30 = ifelse(heatpump_direct > 1 & 
                               heatpump_wtp_pc < 3000| HP == 1, 1, 0),
-      future_HP_110 = ifelse(heatpump_direct > 2 & 
+      future_HP_110 = ifelse(heatpump_direct > 1 & 
                                heatpump_wtp_pc < 11000| HP == 1, 1, 0),
       
-      future_IC_0 = ifelse(induction_direct > 2 &
+      future_IC_0 = ifelse(induction_direct > 1 &
                              induction_dv == 0| IC == 1, 1, 0),
-      future_IC_35 = ifelse(induction_direct > 2 &
+      future_IC_35 = ifelse(induction_direct > 1 &
                               induction_dv < 360| IC == 1, 1, 0),
-      future_IC_159 = ifelse(induction_direct > 2 &
-                               induction_dv < 1590| IC == 1, 1, 0)
+      future_IC_159 = ifelse(induction_direct > 1 &
+                               induction_dv < 1000| IC == 1, 1, 0)
     ) %>% 
     # mutate(across(matches("future"), ~ ifelse(is.na(.), 0, .))) %>% 
   
 
-    # remove variables 
+    # remove variables
     dplyr::select(-solar_install_owner,-solar_install_renter,
                   -workfromhome,-vehicle_charging_own:-charging_install,-charging_5mile_non_1:-charging_5mile_own_2,
                   -replan_heat_owner:-replan_nocool_renter,-elec_savemoney_rent,-elec_health_renter,
                   -natgas_ypccc,
+                  -vehicle_wherecharge_1,-vehicle_wherecharge_2,-vehicle_wherecharge_3,-vehicle_whencharge,
                   -elec_home_cost_1:-elec_home_cost_4,-elec_home_others_1:-elec_home_who_4,vehicle_next_fuel,
                   -heatpump_motiv,-induction_appeal,-induction_downsides,
                   # -solstor_wtp_dv,-heatpump_wtp_pc,
-                  -vehicle_next_fuel) %>%
+                  -vehicle_1_miles,-vehicle_2_miles,
+                  -vehicle_next_fuel,
+                  -cost_fuel_winter,-cost_electric_winter,-cost_combo_winter_summed,-cost_combo_winter,
+                  -cost_combo_summer,-cost_electric_summer,
+                  -ccinsure_owner,-ccinsure_renter,
+                  -pid,-pid_dem,-pid_ind,-pid_rep,
+                  -solar_install,-solar_date_owner,-solar_pv_plans,-storage_plans,-elec_home_cost_PV,
+                  -elec_home_cost_EV,-vehicle_next_when,-vehicle_1_class,
+                  -elec_home_cost_HP,-elec_home_cost_IC,
+                  -storage_own,-cooling_plan,-heating_plan,
+                  -fastcharge_likely,
+                  -solstor_wtp_payback,-heatpump_wtp_payback, # remove payback
+                  -future_EV10
+                  
+                  ) %>%
     relocate(wt_ca, .after = last_col()) %>%
     relocate(tractid, .after = last_col())
   
@@ -729,18 +935,11 @@ data_clean <- function(data, further = NULL){
       # left_join(psps, by = c("tractid" = "GEOID")) %>% 
       # left_join(charge, by = c("tractid" = "GEOID")) %>% 
       dplyr::select(-ExternalReference, -home_own, -age, -gender,
-                    -solar_install,-solar_date_owner,-solar_pv_plans,-storage_plans,-elec_home_cost_PV,
-                    -fastcharge_likely,-vehicle_wherecharge_1,-vehicle_wherecharge_2,-vehicle_wherecharge_3,-vehicle_whencharge,
-                    -elec_home_cost_EV,-vehicle_next_when,-vehicle_1_class,
-                    -elec_home_cost_HP,-elec_home_cost_IC,-tractid,
-                    
-                    -storage_own,
+                    -tractid,
                     -charging_access,-charging_5mile_r,
-                    -cooling_plan,-therm_summer,
-                    -yale_worried,-pid,-ccfuturemove,
-                    
-                    -solstor_wtp_payback,-heatpump_wtp_payback, # remove payback
-                    -future_EV10) %>% 
+                    -therm_summer,
+                    -yale_worried,-ccfuturemove
+                    ) %>% 
       relocate(wt_ca, .after = last_col())
   }
   
@@ -2076,6 +2275,64 @@ mreg_var <- function(data, remove = NULL, i){
 }
 
 
+mreg_var1 <- function(data, remove = NULL, i){
+  
+  # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
+  remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","ExternalReference","tractid")
+  # scenario <- c("peer_PV")
+  # i <- 5
+  # future <- 127
+  
+  da_r <- data %>% 
+    dplyr::select(# remove multicollinear variables
+      # remove future adoption
+      -starts_with("future")
+    ) %>% 
+    dplyr::select(-remove)
+  
+  
+  da_r <- da_r %>% 
+    mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
+    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
+  
+  
+  if(i %in% c(1,5)){
+    # for PV, remove zone effect, tech
+    tract <- c("climatezone","dac","ev_wtp_pc","heatpump_wtp_pc","induction_dv","wt_ca",
+               "peer_EV","peer_HP","peer_IC",
+               "PV","PS","EV","HP","IC")
+    
+    model1vars <- setdiff(names(da_r), tract)
+    
+  }else if(i == 2){
+    # for EV, remove zone effect, tech
+    tract <- c("climatezone","dac","solstor_wtp_dv","heatpump_wtp_pc","induction_dv","wt_ca",
+               "peer_IC","peer_HP","peer_PV",
+               "PV","PS","EV","HP","IC")
+    model1vars <- setdiff(names(da_r), tract)
+    
+  }else if(i == 3){
+    # for HP, remove zone effect, tech, heating/cooling type
+    tract <- c("climatezone","dac","ev_wtp_pc","solstor_wtp_dv","induction_dv","wt_ca",
+               "peer_EV","peer_IC","peer_PV",
+               "PV","PS","EV","HP","IC","primary_heating_type","primary_cooling_type")
+    model1vars <- setdiff(names(da_r), tract)
+    
+  }else{
+    # for IC, remove zone effect, tech, cooking type
+    tract <- c("climatezone","dac","ev_wtp_pc","solstor_wtp_dv","heatpump_wtp_pc","wt_ca",
+               "peer_EV","peer_HP","peer_PV",
+               "PV","PS","EV","HP","IC","kitchen_range_type")
+    model1vars <- setdiff(names(da_r), tract)
+  }
+  
+  da_r <- da_r %>% 
+    mutate(across(c("PV","PS","EV","HP","IC"), as.factor))
+  
+  return(list(da_r, model1vars))
+}
+
+
 
 
 ### regression result plot
@@ -2969,7 +3226,7 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
     ) %>% 
     dplyr::select(-remove)
   
-  future <- fut[[i]][1] # optimistic
+  future <- 0 # optimistic # remove if it is based on current
   
   if(i == 1){
     future_var <- sym(paste0("future_", ipt[i]))
@@ -3179,17 +3436,26 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
                 gather(scene, R_effect, names), by = c("sample" = "zone")) %>% 
     dplyr::select(sample,scene,R_effect)
   
-  re_slope <- zone_r %>% 
-    st_drop_geometry() %>% 
-    inner_join(dac_r %>% 
-                 st_drop_geometry(), by = c("scene")) %>% 
-    unite(col = "group", BZone, sample, sep = "") %>% 
-    mutate(R_effect = R_effect.x + R_effect.y) %>% 
-    dplyr::select(-R_effect.x, -R_effect.y) %>% 
-    pivot_wider(names_from = scene, values_from = R_effect) 
-  
-  re_slope$home_ageNewer %>% mean()
-  
+  if(i == 3){
+    re_slope <- zone_r %>% 
+      st_drop_geometry() %>% 
+      inner_join(dac_r %>% 
+                   st_drop_geometry(), by = c("scene")) %>% 
+      unite(col = "group", BZone, sample, sep = "") %>% 
+      mutate(R_effect = R_effect.x + R_effect.y) %>% 
+      dplyr::select(-R_effect.x, -R_effect.y) %>% 
+      pivot_wider(names_from = scene, values_from = R_effect)   
+  }else{
+    re_slope <- zone_r %>% 
+      st_drop_geometry() %>% 
+      inner_join(dac_r %>% 
+                   st_drop_geometry(), by = c("scene")) %>% 
+      unite(col = "group", BZone, sample, sep = "") %>% 
+      mutate(R_effect = R_effect.x + R_effect.y) %>% 
+      dplyr::select(-R_effect.x, -R_effect.y) %>% 
+      pivot_wider(names_from = scene, values_from = R_effect) %>% 
+      mutate(home_ageNewer = ifelse(home_ageNewer <0, 0, home_ageNewer))
+  }
   
   re <- re_slope %>% 
     dplyr::select(-names[1]) %>% 
@@ -3413,16 +3679,26 @@ final_ef_peer <- function(data, i, future){
 
 
 data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
-mrp <- read_csv("./data/raw/mrp_scenariovars_tract.csv") %>% 
+mrp <- read_csv("./data/raw/mrp_scenariovars_tract_nov7.csv") %>% 
   mutate(GEOID = str_sub(geoid_tract2020, 10)) %>%
   dplyr::select(-geoid_tract2020,-future_EV10) %>% 
-  mutate(future_PS_0 = ifelse(future_PS_0 > future_PS_76, future_PS_76, future_PS_0)) %>% 
-  left_join(read_csv("./data/raw/mrptractresults_currentadoption.csv") %>% 
+  mutate(future_PS_76 = ifelse(future_PS_76 > future_PS_127, future_PS_127, future_PS_76),
+         future_PS_0 = ifelse(future_PS_0 > future_PS_76, future_PS_76, future_PS_0),
+         
+         future_EV_75 = ifelse(future_EV_75 > future_EV_120, future_EV_120, future_EV_75),
+         future_EV_0 = ifelse(future_EV_0 > future_EV_75, future_EV_75, future_EV_0),
+         
+         future_HP_30 = ifelse(future_HP_30 > future_HP_110, future_HP_110, future_HP_30),
+         future_HP_0 = ifelse(future_HP_0 > future_HP_30, future_HP_30, future_HP_0),
+         
+         future_IC_35 = ifelse(future_IC_35 > future_IC_159, future_IC_159, future_IC_35),
+         future_IC_0 = ifelse(future_IC_0 > future_IC_35, future_IC_35, future_IC_0)) %>% 
+  left_join(read_csv("./data/raw/mrptractresults_currentadoption.csv") %>%
               mutate(GEOID = str_sub(ca.tract, 10)) %>%
               dplyr::rename(HP = current_HP,
                             PS = current_PS,
                             IC = current_IC,
-                            EV = current_EV) %>% 
+                            EV = current_EV) %>%
               dplyr::select(-ca.tract), by = "GEOID")
 
 
@@ -3478,5 +3754,30 @@ future4 <- c(159, 35) # if i == 4,
 future1 <- future5 <- c(127, 76) # if i == 5,
 fut <- list(future1,future2,future3,future4,future5)
 
-
-load("./data/results.Rdata")
+# ### scenario
+# effect <- list()
+# for(i in seq_along(ipt)){
+#   future <- fut[[i]]
+#   scene <- c("Optimistic","Pessimistic")
+#   
+#   for(j in 1:2){
+#     f_d <- final_ef_peer(data, i, future[j]) %>%
+#       mutate(class = paste0(ipt[i],"_",scene[j]))
+#     
+#     effect <- append(effect, list(f_d))
+#     
+#   }
+# }
+# 
+# df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","Final","class"), drop = FALSE])
+# combined_df <- bind_rows(df_common)
+# 
+# combined_df_wide <- combined_df %>% 
+#   dplyr::select(-Effect) %>% 
+#   pivot_wider(names_from = class, values_from = Final) %>% 
+#   left_join(mrp %>% 
+#               dplyr::select(GEOID, which(str_detect(names(.), "_0"))), by = "GEOID")
+# 
+# write_csv(combined_df_wide, "./data/result.csv")
+# save(effect, file = "./data/results.Rdata") # for official sharing
+load("./data/results.Rdata") # effect

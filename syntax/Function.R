@@ -871,34 +871,34 @@ data_clean <- function(data, further = NULL){
       future_EV_0 = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
                               ev_wtp_pc == 0)| EV == 1, 1, 0),
       future_EV_75 = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
-                               ev_wtp_pc < 7500)| EV == 1, 1, 0),
+                               ev_wtp_pc <= 8000)| EV == 1, 1, 0),
       future_EV_120 = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
-                                ev_wtp_pc < 12000)| EV == 1, 1, 0),
+                                ev_wtp_pc <= 12500)| EV == 1, 1, 0),
       
       future_PV = ifelse(solar_pv_plans %in% c("Yes", "Maybe") | PV == 1, 1, 0),
       future_PS_0 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv == 0) | 
                              (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv == 0) |
                              PS == 1, 1, 0),
-      future_PS_76 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 7600) |
-                              (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 7600) |
+      future_PS_76 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 5000) |
+                              (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 5000) |
                               PS == 1, 1, 0),
-      future_PS_127 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 12700) |
-                               (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv < 12700) |
+      future_PS_127 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 12500) |
+                               (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 12500) |
                                PS == 1, 1, 0),
       
       future_HP_0 = ifelse(heatpump_direct > 1 & 
                              heatpump_wtp_pc == 0| HP == 1, 1, 0),
       future_HP_30 = ifelse(heatpump_direct > 1 & 
-                              heatpump_wtp_pc < 3000| HP == 1, 1, 0),
+                              heatpump_wtp_pc <= 4000| HP == 1, 1, 0),
       future_HP_110 = ifelse(heatpump_direct > 1 & 
-                               heatpump_wtp_pc < 11000| HP == 1, 1, 0),
+                               heatpump_wtp_pc <= 8000| HP == 1, 1, 0),
       
       future_IC_0 = ifelse(induction_direct > 1 &
                              induction_dv == 0| IC == 1, 1, 0),
       future_IC_35 = ifelse(induction_direct > 1 &
-                              induction_dv < 360| IC == 1, 1, 0),
+                              induction_dv <= 300| IC == 1, 1, 0),
       future_IC_159 = ifelse(induction_direct > 1 &
-                               induction_dv < 1000| IC == 1, 1, 0)
+                               induction_dv <= 800| IC == 1, 1, 0)
     ) %>% 
     # mutate(across(matches("future"), ~ ifelse(is.na(.), 0, .))) %>% 
   
@@ -2277,24 +2277,25 @@ mreg_var <- function(data, remove = NULL, i){
 
 mreg_var1 <- function(data, remove = NULL, i){
   
-  # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
-  remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","ExternalReference","tractid")
-  # scenario <- c("peer_PV")
-  # i <- 5
-  # future <- 127
-  
   da_r <- data %>% 
-    dplyr::select(# remove multicollinear variables
-      # remove future adoption
-      -starts_with("future")
-    ) %>% 
-    dplyr::select(-remove)
-  
+    dplyr::select(-na_df$variable,cost_combo_winter_final,cost_combo_summer_final,rangeanxiety,matches("future")) %>% 
+    dplyr::select(-ExternalReference,-tractid,-wt_ca,-ev_wtp_pc,-charging_access) %>% 
+    dplyr::select(-matches("future"),-PV)
   
   da_r <- da_r %>% 
-    mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) %>% 
-    mutate(across(any_of(c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")), ~ .x * -1))
+    mutate(across(where(is.numeric) & !c("PS","EV","HP","IC"), ~ scale(.) %>% as.numeric())) 
   
+  categorical_vars <- c(
+    "climatezone","gender","race","employment","home_type","home_age","primary_heating_type",
+    "primary_cooling_type","kitchen_range_type","charging_access"
+  )
+  
+  for (var in categorical_vars) {
+    # Check if var is in the dataframe colnames first
+    if (var %in% colnames(da_r)) { # Check in 'x' now, not 'data'
+      da_r[[var]] <- as.factor(da_r[[var]])
+    }
+  }
   
   if(i %in% c(1,5)){
     # for PV, remove zone effect, tech
@@ -2327,7 +2328,7 @@ mreg_var1 <- function(data, remove = NULL, i){
   }
   
   da_r <- da_r %>% 
-    mutate(across(c("PV","PS","EV","HP","IC"), as.factor))
+    mutate(across(c("PS","EV","HP","IC"), as.factor))
   
   return(list(da_r, model1vars))
 }

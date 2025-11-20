@@ -229,7 +229,14 @@ data_process <- function(data, ev_type){
                   
                   # HP
                   primary_heating_type,
+                  primary_heating_type_64_TEXT,
                   primary_cooling_type, # heating and cooling
+                  primary_cooling_type_25_TEXT,
+                  heatenergy_furnace,
+                  heatenergy_boiler,
+                  hotwater_energy,
+                  hotwater_energy_6_TEXT,
+                  hotwater_nextelec,
                   heatpump_direct, # previous heating before hp
                   replan_heat_owner,replan_noheat_owner,replan_heat_renter,replan_noheat_renter,
                   replan_cool_owner,replan_cool_renter,replan_nocool_owner,replan_nocool_renter,
@@ -264,6 +271,7 @@ data_process <- function(data, ev_type){
                   elec_home_who_1,elec_home_who_2,elec_home_who_3,elec_home_who_4, 
                   
                   # WTP
+                  ss_upfr_text,
                   solstor_wtp_dv, solstor_wtp_payback, 
                   ev_wtp_pc,
                   heatpump_wtp_pc,heatpump_wtp_payback,heatpump_motiv,
@@ -319,23 +327,36 @@ data_cl <- function(data, further = NULL){
            # income = factor(income, levels = dat$income %>% unique() %>% .[c(7,14,15,11,8,6,1,5,10,9,4,3,12,2,13)]) %>% 
            #   as.numeric(),
            
-           education = factor(education, levels = data$education %>% unique() %>% .[c(8,6,3,1,5,7,2,4)]) %>% 
-             as.numeric(),
+           # education = factor(education, levels = data$education %>% unique() %>% .[c(8,6,3,1,5,7,2,4)]) %>% 
+           #   as.numeric(),
+           
+           education = case_when(education == "Less than high school" ~ "less than HS",
+                                 education == "Some high school, no diploma" ~ "less than HS",
+                                 education == "High school diploma (or GED)" ~ "HS",
+                                 education == "Associate's degree (2 yr)" ~ "some college",
+                                 education == "Some college, but no degree" ~ "some college",
+                                 education == "Trade school certificate (or equivalent)" ~ "some college",
+                                 education == "Bachelor's degree (4 yr)" ~ "college",
+                                 education == "Postgraduate or professional degree (e.g. MA, MD, MBA, PhD)" ~ "graduate"),
+           
            born_us = ifelse(born_us == "Yes", 1, 0), 
            race = case_when(str_detect(race, "Hispanic") ~ "Hispanic",
                             race == "White" ~ "White",
                             race == "Black or African-American" ~ "Black",
                             race == "Asian" ~ "Asian",
-                            race %in% c("American Indian or Alaska Native","Native Hawaiian or Pacific Islander") ~ "Natives",
+                            race == "Other" ~ "Non-hispanic other",
+                            race %in% c("American Indian or Alaska Native","Native Hawaiian or Pacific Islander") ~ "AIANNHPI",
+                            # race %in% c("American Indian or Alaska Native","Native Hawaiian or Pacific Islander") ~ "Natives",
                             is.na(race) ~ NA_character_,
                             TRUE ~ "Multirace"),
            ideology = factor(ideology, levels = data$ideology %>% unique() %>% .[c(8,2,5,1,6,3,7)]) %>% 
              as.numeric(),
-           employment = ifelse(str_detect(employment, "full"), "Workfull",
-                               ifelse(str_detect(employment, "part"), "Workpart", 
-                                      ifelse(employment == "Homemaker", "Homemaker",
-                                             ifelse(employment == "Retired", "Retired", 
-                                                    ifelse(str_detect(employment, "Unemployed"), "Unemployed","Others"))))),
+           employment = ifelse(str_detect(employment, "full"), 1,0)  %>% as.numeric(),
+           # employment = ifelse(str_detect(employment, "full"), "Workfull",
+           #                     ifelse(str_detect(employment, "part"), "Workpart", 
+           #                            ifelse(employment == "Homemaker", "Homemaker",
+           #                                   ifelse(employment == "Retired", "Retired", 
+           #                                          ifelse(str_detect(employment, "Unemployed"), "Unemployed","Others"))))),
 
            # employment = ifelse(str_detect(employment, "full|part") & str_detect(workfromhome, "NOT"), "Work full",
            #                     ifelse(str_detect(employment, "full|part") & str_detect(workfromhome, "Always"), "Work home",
@@ -380,9 +401,9 @@ data_cl <- function(data, further = NULL){
                                 home_age == "Less than 5 years ago (built since 2020)"~ 2022),
            
            home_age = case_when(home_age < 1980 ~ "Older",
-                                home_age < 2019 ~ "New",
+                                home_age < 2019 ~ "BrandNew",
                                 TRUE ~ "Newer"),
-           home_age = factor(home_age, levels = c("Older","New","Newer")),
+           home_age = factor(home_age, levels = c("Older","BrandNew","Newer")),
            # home_age = factor(home_age, levels = data$home_age %>% unique() %>% .[c(7,6,1,2,5,3,4,9,10)]) %>% 
            #   as.numeric(),
            
@@ -443,47 +464,137 @@ data_cl <- function(data, further = NULL){
            #   as.numeric(),
            vehicle_next_used = ifelse(vehicle_next_used == "New", 1, 0),
            
-           vehicle_next_when = factor(vehicle_next_when, levels = data$vehicle_next_when %>% unique() %>% .[c(1,3,2,4,5)]) %>% 
-             as.numeric(),
+           
+           vehicle_next_when = case_when(vehicle_next_when == "Within the next year"~ 1,
+                                         vehicle_next_when == "In one or two years"~ 1,
+                                         vehicle_next_when == "In three to five years"~ 1,
+                                         vehicle_next_when == "More than five years from now"~ 0,
+                                         vehicle_next_when == "I don’t plan to ever purchase/lease a vehicle"~ 0,
+                                         TRUE ~ NA_real_),
+           
+           # vehicle_next_when = factor(vehicle_next_when, levels = data$vehicle_next_when %>% unique() %>% .[c(1,3,2,4,5)]) %>% 
+           #   as.numeric(),
+           
            vehicle_next_fuel = ifelse(str_detect(vehicle_next_fuel, "All-electric vehicle"), 1, 0),
            
            
            # HP
-           primary_heating_type  = ifelse(primary_heating_type  == "Central forced-air furnace", "Central", 
-                                          ifelse(primary_heating_type  == "Electric heaters", "Elec",
-                                                 ifelse(primary_heating_type  == "I do not have a home heating system", "None",
-                                                        ifelse(str_detect(primary_heating_type, "pump"), "HP","Others")))),
-           primary_cooling_type  = ifelse(primary_cooling_type  == "Central air-conditioning", "Central", 
-                                          ifelse(primary_cooling_type  == "Air-conditioning unit(s) in specific room(s)", "Room",
-                                                 ifelse(primary_cooling_type  == "I do not have air-conditioning in my home", "None", "Others"))),
-           heatpump_direct = ifelse(heatpump_direct == "I don't know", NA, heatpump_direct),
-           heatpump_direct = factor(heatpump_direct, levels = data$heatpump_direct %>% unique() %>% .[c(1,5,2)]) %>% 
-             as.numeric(),
+           hotwater_nextelec = case_when(hotwater_nextelec == "I don't know"~ 0,
+                                                           hotwater_nextelec == "No, definitely"~ 0,
+                                                           hotwater_nextelec == "Probably no"~ 0,
+                                                           hotwater_nextelec == "Probably yes"~ 1,
+                                                           hotwater_nextelec == "Yes, definitely"~ 1),
+           
+           hotwater_energy = case_when(hotwater_energy  == "I don't know"~ "Not know",
+                                       hotwater_energy == "Electricity"~ "Elec",
+                                       hotwater_energy == "Natural gas"~ "Gas",
+                                       str_detect(hotwater_energy,"Propane|Wood|oil|thermal")~ "Other",
+                                       hotwater_energy == "Other, please share:" & str_detect(hotwater_energy_6_TEXT, "gas|Gas") ~ "Gas",
+                                       hotwater_energy == "Other, please share:" & str_detect(hotwater_energy_6_TEXT, "electric|Electric|split|Split|pump|Pump|PUMP|AC|ac|Air|air|A/C|A/c") ~ "Elec",
+                                       hotwater_energy == "Other, please share:" ~ "Other"),
+           
+           primary_heating_type  = case_when(primary_heating_type  == "Central forced-air furnace"~"Central",
+                                             primary_heating_type  == "Electric heaters"~ "Elec",
+                                             primary_heating_type  == "A device called a \"heat pump\""~ "Elec",
+                                             primary_heating_type  == "I do not have a home heating system" ~ "None",
+                                             primary_heating_type  == "I don't know" ~ "Not know",
+                                             primary_heating_type  == "Other, please share:" ~ "Further",
+                                             primary_heating_type  == "Wood stove/fireplace" ~ "Other",
+                                             primary_heating_type  == "Steam or hot water through radiators or pipes" ~ "Boiler",
+                                             primary_heating_type  == "Geothermal or solar radiant heat" ~ "Other"),
+           
+           primary_heating_type = case_when(
+             primary_heating_type == "Central" & str_detect(heatenergy_furnace, "heat pump|resistance") ~ "Elec",
+             primary_heating_type == "Central" & str_detect(heatenergy_furnace, "fuel|Propane|Wood") ~ "Other",
+             primary_heating_type == "Central" & str_detect(heatenergy_furnace, "Natural") ~ "Gas",
+             primary_heating_type == "Central" & str_detect(heatenergy_furnace, "I don't know") ~ "Not know",
+             
+             primary_heating_type == "Boiler" & str_detect(heatenergy_boiler, "Natural") ~ "Gas",
+             primary_heating_type == "Boiler" & str_detect(heatenergy_boiler, "fuel|Propane") ~ "Other",
+             primary_heating_type == "Boiler" & str_detect(heatenergy_boiler, "pump") ~ "Elec",
+             primary_heating_type == "Boiler" & str_detect(heatenergy_boiler, "I don't know") ~ "Not know",
+             
+             primary_heating_type == "Further" & str_detect(primary_heating_type_64_TEXT, "gas|Gas|GAS|Calentador") ~ "Gas",
+             primary_heating_type == "Further" & str_detect(primary_heating_type_64_TEXT, "electric|Electric|split|Split|SPLIT|pump|Pump|AC|ac|Air|air|A/C|A/c|Ac|Coil|portable|Portable|Wall|wall|WALL") ~ "Elec",
+             primary_heating_type == "Further" & str_detect(primary_heating_type_64_TEXT, "not|don’t|don't|dont|None|none|Don't|Don’t|never|Rarely|dress|cloth") ~ "None",
+             primary_heating_type == "Further"  ~ "Other",
+             
+             TRUE ~ primary_heating_type
+           ),
+           
+           primary_cooling_type  = case_when(primary_cooling_type  == "Air-conditioning unit(s) in specific room(s)"~"Room",
+                                             primary_cooling_type  == "Central air-conditioning"~ "Central",
+                                             primary_cooling_type  == "I do not have air-conditioning in my home"~ "None",
+                                             primary_cooling_type  == "I don't know" ~ "Not know",
+                                             primary_cooling_type  == "Other, please share:" & str_detect(primary_cooling_type_25_TEXT, "heat|Heat|central|Central|HEAT") ~ "Central", 
+                                             primary_cooling_type  == "Other, please share:" & str_detect(primary_cooling_type_25_TEXT, "Portable|portable|air|Air|split|Split|AC|A/C|ac|`Window units`|`window units`|`Window ac`|`window a/c`") ~ "Room",
+                                             primary_cooling_type  == "Other, please share:" ~ "Other"),
+           
+           
+           # primary_heating_type  = ifelse(primary_heating_type  == "Central forced-air furnace", "Central", 
+           #                                ifelse(primary_heating_type  == "Electric heaters", "Elec",
+           #                                       ifelse(primary_heating_type  == "I do not have a home heating system", "None",
+           #                                              ifelse(str_detect(primary_heating_type, "pump"), "HP","Others")))),
+           # primary_cooling_type  = ifelse(primary_cooling_type  == "Central air-conditioning", "Central", 
+           #                                ifelse(primary_cooling_type  == "Air-conditioning unit(s) in specific room(s)", "Room",
+           #                                       ifelse(primary_cooling_type  == "I do not have air-conditioning in my home", "None", "Others"))),
+           
+           heatpump_direct = case_when(heatpump_direct == "I don't know"~ 0,
+                                       heatpump_direct == "Not interested"~ 0,
+                                       heatpump_direct == "Somewhat interested"~ 1,
+                                       heatpump_direct == "Very interested"~ 1),
+           
            heating_plan = coalesce(replan_heat_owner,replan_noheat_owner,replan_heat_renter,replan_noheat_renter),
-           heating_plan = ifelse(heating_plan == "In the next 1 to 2 years", 4, 
-                                 ifelse(heating_plan == "In the next 3 to 5 years", 3, 
-                                        ifelse(heating_plan == "More than 5 years from now", 2, 
-                                               ifelse(heating_plan == "Never", 1, NA)))),
+           heating_plan = case_when(heating_plan == "In the next 1 to 2 years" ~ 1,
+                                    heating_plan == "In the next 3 to 5 years" ~ 1,
+                                    is.na(heating_plan) ~ NA_real_,
+                                    TRUE ~ 0),
+           
            cooling_plan = coalesce(replan_cool_owner,replan_nocool_owner,replan_cool_renter,replan_nocool_renter),
-           cooling_plan = ifelse(cooling_plan == "In the next 1 to 2 years", 4, 
-                                 ifelse(cooling_plan == "In the next 3 to 5 years", 3, 
-                                        ifelse(cooling_plan == "More than 5 years from now", 2, 
-                                               ifelse(cooling_plan == "Never", 1, NA)))),
+           cooling_plan = case_when(cooling_plan == "In the next 1 to 2 years" ~ 1,
+                                    cooling_plan == "In the next 3 to 5 years" ~ 1,
+                                    is.na(cooling_plan) ~ NA_real_,
+                                    TRUE ~ 0),
+           
+           # heatpump_direct = ifelse(heatpump_direct == "I don't know", NA, heatpump_direct),
+           # heatpump_direct = factor(heatpump_direct, levels = data$heatpump_direct %>% unique() %>% .[c(1,5,2)]) %>% 
+           #   as.numeric(),
+           # heating_plan = coalesce(replan_heat_owner,replan_noheat_owner,replan_heat_renter,replan_noheat_renter),
+           # heating_plan = ifelse(heating_plan == "In the next 1 to 2 years", 4, 
+           #                       ifelse(heating_plan == "In the next 3 to 5 years", 3, 
+           #                              ifelse(heating_plan == "More than 5 years from now", 2, 
+           #                                     ifelse(heating_plan == "Never", 1, NA)))),
+           # cooling_plan = coalesce(replan_cool_owner,replan_nocool_owner,replan_cool_renter,replan_nocool_renter),
+           # cooling_plan = ifelse(cooling_plan == "In the next 1 to 2 years", 4, 
+           #                       ifelse(cooling_plan == "In the next 3 to 5 years", 3, 
+           #                              ifelse(cooling_plan == "More than 5 years from now", 2, 
+           #                                     ifelse(cooling_plan == "Never", 1, NA)))),
            # therm_summer = ifelse(therm_summer %in% c("I do not have a thermostat in my home",
            #                                           "I do not use my thermostat during the summer"), 0,1),
            # therm_winter = ifelse(therm_winter %in% c("I do not have a thermostat in my home",
            #                                           "I do not use my thermostat during the winter"), 0,1),
            
            # IC
-           induction_direct = ifelse(induction_direct == "I don't know", NA, induction_direct),
-           induction_direct = factor(induction_direct, levels = data$induction_direct %>% unique() %>% .[c(1,4,2)]) %>% 
-             as.numeric(),
-           kitchen_range_type = ifelse(kitchen_range_type  == "Electric coil", "Elec_coil", 
-                                       ifelse(kitchen_range_type  == "Natural gas", "Natural_gas",
-                                              ifelse(kitchen_range_type  == "Propane  or bottled gas", "Propane",
-                                                     ifelse(kitchen_range_type == "I don't have a cooktop or range", "None",
-                                                            ifelse(kitchen_range_type == "I don't know", "not_known","Induction"))))),
+           induction_direct = case_when(induction_direct == "I don't know"~ 0,
+                                        induction_direct == "Not interested"~ 0,
+                                        induction_direct == "Somewhat interested"~ 1,
+                                        induction_direct == "Very interested"~ 1),
+           # induction_direct = ifelse(induction_direct == "I don't know", NA, induction_direct),
+           # induction_direct = factor(induction_direct, levels = data$induction_direct %>% unique() %>% .[c(1,4,2)]) %>% 
+           #   as.numeric(),
+           kitchen_range_type = case_when(kitchen_range_type == "Electric coil"~ "Elec",
+                                          kitchen_range_type == "Natural gas"~ "Gas",
+                                          kitchen_range_type == "Propane  or bottled gas"~ "Other",
+                                          kitchen_range_type == "Induction"~ "Elec",
+                                          kitchen_range_type == "I don't have a cooktop or range"~ "None",
+                                          kitchen_range_type == "I don't know"~ "Not know"),
            
+           # kitchen_range_type = ifelse(kitchen_range_type  == "Electric coil", "Elec_coil", 
+           #                             ifelse(kitchen_range_type  == "Natural gas", "Natural_gas",
+           #                                    ifelse(kitchen_range_type  == "Propane  or bottled gas", "Propane",
+           #                                           ifelse(kitchen_range_type == "I don't have a cooktop or range", "None",
+           #                                                  ifelse(kitchen_range_type == "I don't know", "not_known","Induction"))))),
+            
            # perception
            heating_cost_burden = factor(heating_cost_burden, levels = data$heating_cost_burden %>% unique() %>% .[c(5,1,4,3,2)]) %>% 
              as.numeric(),
@@ -501,16 +612,20 @@ data_cl <- function(data, further = NULL){
            
            # electrification = factor(natgas_ypccc, levels = data$natgas_ypccc %>% unique() %>% .[c(4,2,3)]) %>%
            #   as.numeric(),
-           elec_home_cost_1 = ifelse(elec_home_cost_1 == "I don't know", NA, elec_home_cost_1),
+           # elec_home_cost_1 = ifelse(elec_home_cost_1 == "I don't know", NA, elec_home_cost_1),
+           elec_home_cost_1 = ifelse(elec_home_cost_1 == "I don't know", "No change in cost", elec_home_cost_1),
            elec_home_cost_EV = factor(elec_home_cost_1, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
-           elec_home_cost_2 = ifelse(elec_home_cost_2 == "I don't know", NA, elec_home_cost_2),
+           # elec_home_cost_2 = ifelse(elec_home_cost_2 == "I don't know", NA, elec_home_cost_2),
+           elec_home_cost_2 = ifelse(elec_home_cost_2 == "I don't know", "No change in cost", elec_home_cost_2),
            elec_home_cost_IC = factor(elec_home_cost_2, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
-           elec_home_cost_3 = ifelse(elec_home_cost_3 == "I don't know", NA, elec_home_cost_3),
+           # elec_home_cost_3 = ifelse(elec_home_cost_3 == "I don't know", NA, elec_home_cost_3),
+           elec_home_cost_3 = ifelse(elec_home_cost_3 == "I don't know", "No change in cost", elec_home_cost_3),
            elec_home_cost_HP = factor(elec_home_cost_3, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
-           elec_home_cost_4 = ifelse(elec_home_cost_4 == "I don't know", NA, elec_home_cost_4),
+           # elec_home_cost_4 = ifelse(elec_home_cost_4 == "I don't know", NA, elec_home_cost_4),
+           elec_home_cost_4 = ifelse(elec_home_cost_4 == "I don't know", "No change in cost", elec_home_cost_4),
            elec_home_cost_PV = factor(elec_home_cost_4, levels = data$elec_home_cost_1 %>% unique() %>% .[c(5,3,7,6,2)]) %>%
              as.numeric(),
            upfrontpayback = ifelse(upfrontpayback == "I would prefer an upfront subsidy", 1, 0),
@@ -558,6 +673,10 @@ data_cl <- function(data, further = NULL){
            
            
            # WTP
+           evupfront_num = case_when(vehicle_1_class == "Compact" ~ 27804,
+                                     vehicle_1_class == "Sedan " ~ 40380,
+                                     vehicle_1_class %in% c("SUV / Crossover SUV","Minivan") ~ 43990,
+                                     vehicle_1_class == "Truck" ~ 55177) %>% as.numeric(),
            ev_wtp_pc = case_when(ev_wtp_pc == "always"~ 0,
                                  ev_wtp_pc == "$2,000 in financial assistance"~ 2000,
                                  ev_wtp_pc == "$4,000 in financial assistance"~ 4000,
@@ -566,10 +685,11 @@ data_cl <- function(data, further = NULL){
                                  ev_wtp_pc == "$10,000 in financial assistance"~ 10000,
                                  ev_wtp_pc == "$12,500 in financial assistance"~ 12500,
                                  ev_wtp_pc == "$15,000 in financial assistance"~ 15000,
-                                 ev_wtp_pc == "never"~ 20000),
+                                 ev_wtp_pc == "never"~ evupfront_num),
            # ev_wtp_pc = factor(ev_wtp_pc, levels = data$ev_wtp_pc %>% unique() %>% .[c(8,4,10,7,1,2,6,5,9)]) %>%
            #   as.numeric(),
            
+           ssupfront_num = str_remove_all(ss_upfr_text, "[^0-9]") %>% as.numeric(),
            solstor_wtp_dv = case_when(solstor_wtp_dv == "always"~ 0,
                                       solstor_wtp_dv == "$1,000 in financial assistance"~ 1000,
                                       solstor_wtp_dv == "$2,000 in financial assistance"~ 2000,
@@ -583,7 +703,22 @@ data_cl <- function(data, further = NULL){
                                       solstor_wtp_dv == "$20,000 in financial assistance"~ 20000,
                                       solstor_wtp_dv == "$25,000 in financial assistance"~ 25000,
                                       solstor_wtp_dv == "$30,000 in financial assistance"~ 30000,
-                                      solstor_wtp_dv == "never"~ 35000),
+                                      solstor_wtp_dv == "never"~ ssupfront_num),
+           # 
+           # solstor_wtp_dv = case_when(solstor_wtp_dv == "always"~ 0,
+           #                            solstor_wtp_dv == "$1,000 in financial assistance"~ 1000,
+           #                            solstor_wtp_dv == "$2,000 in financial assistance"~ 2000,
+           #                            solstor_wtp_dv == "$3,000 in financial assistance"~ 3000, 
+           #                            solstor_wtp_dv == "$5,000 in financial assistance"~ 5000,
+           #                            solstor_wtp_dv == "$7,500 in financial assistance"~ 7500,
+           #                            solstor_wtp_dv == "$10,000 in financial assistance"~ 10000,
+           #                            solstor_wtp_dv == "$12,500 in financial assistance"~ 12500,
+           #                            solstor_wtp_dv == "$15,000 in financial assistance"~ 15000,
+           #                            solstor_wtp_dv == "$17,500 in financial assistance"~ 17500,
+           #                            solstor_wtp_dv == "$20,000 in financial assistance"~ 20000,
+           #                            solstor_wtp_dv == "$25,000 in financial assistance"~ 25000,
+           #                            solstor_wtp_dv == "$30,000 in financial assistance"~ 30000,
+           #                            solstor_wtp_dv == "never"~ 35000),
            # solstor_wtp_dv = factor(solstor_wtp_dv, levels = data$solstor_wtp_dv %>% unique() %>% .[c(5,9,8,10,13,12,14,3,2,6,7,15,4,11)]) %>%
            #   as.numeric(),
            
@@ -598,7 +733,9 @@ data_cl <- function(data, further = NULL){
                                            solstor_wtp_payback == "never"~ 25),
            # solstor_wtp_payback  = factor(solstor_wtp_payback , levels = data$solstor_wtp_payback  %>% unique() %>% .[c(2,10,9,4,5,3,6,8,7)]) %>%
            #   as.numeric(),
-           
+           hpupfront_num = case_when(home_area > 0 ~ 13000,
+                                     home_area > 1500 ~ 15000,
+                                     home_area > 2500 ~ 20000),
            heatpump_wtp_pc = case_when(heatpump_wtp_pc == "always"~ 0,
                                        heatpump_wtp_pc == "$2,000 in financial assistance"~ 2000,
                                        heatpump_wtp_pc == "$4,000 in financial assistance"~ 4000,
@@ -607,7 +744,7 @@ data_cl <- function(data, further = NULL){
                                        heatpump_wtp_pc == "$10,000 in financial assistance"~ 10000,
                                        heatpump_wtp_pc == "$12,500 in financial assistance"~ 12500,
                                        heatpump_wtp_pc == "$15,000 in financial assistance"~ 15000,
-                                       heatpump_wtp_pc == "never"~ 20000),
+                                       heatpump_wtp_pc == "never"~ hpupfront_num),
            # heatpump_wtp_pc = factor(heatpump_wtp_pc, levels = data$heatpump_wtp_pc %>% unique() %>% .[c(1,6,10,7,5,2,3,8,9)]) %>%
            #   as.numeric(),
            
@@ -634,7 +771,7 @@ data_cl <- function(data, further = NULL){
                                     induction_dv == "$800" ~ 800,
                                     induction_dv == "$900" ~ 900,
                                     induction_dv == "$1000" ~ 1000,
-                                    induction_dv == "never" ~ 1200),
+                                    induction_dv == "never" ~ 1300),
            # induction_dv = factor(induction_dv, levels = data$induction_dv %>% unique() %>% .[c(5,7,12,11,9,10,3,2,13,6,8)]) %>%
            #   as.numeric(),
            
@@ -867,37 +1004,37 @@ data_clean <- function(data, further = NULL){
   dat <- dat %>% 
     mutate(
       # future adoption
-      future_EV10 = ifelse((vehicle_next_when > 1 & vehicle_next_fuel == 1)| EV == 1, 1, 0),
-      future_EV_0 = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
+      # future_EV10 = ifelse((vehicle_next_when > 1 & vehicle_next_fuel == 1)| EV == 1, 1, 0),
+      future_EV_0 = ifelse((vehicle_next_when == 1 & vehicle_next_fuel == 1 &
                               ev_wtp_pc == 0)| EV == 1, 1, 0),
-      future_EV_75 = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
+      future_EV_low = ifelse((vehicle_next_when == 1 & vehicle_next_fuel == 1 &
                                ev_wtp_pc <= 8000)| EV == 1, 1, 0),
-      future_EV_120 = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
+      future_EV_high = ifelse((vehicle_next_when == 1 & vehicle_next_fuel == 1 &
                                 ev_wtp_pc <= 12500)| EV == 1, 1, 0),
       
       future_PV = ifelse(solar_pv_plans %in% c("Yes", "Maybe") | PV == 1, 1, 0),
       future_PS_0 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv == 0) | 
                              (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv == 0) |
                              PS == 1, 1, 0),
-      future_PS_76 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 5000) |
+      future_PS_low = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 5000) |
                               (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 5000) |
                               PS == 1, 1, 0),
-      future_PS_127 = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 12500) |
+      future_PS_high = ifelse((storage_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 12500) |
                                (solar_pv_plans %in% c("Yes", "Maybe") & solstor_wtp_dv <= 12500) |
                                PS == 1, 1, 0),
       
-      future_HP_0 = ifelse(heatpump_direct > 1 & 
+      future_HP_0 = ifelse(heatpump_direct == 1 & 
                              heatpump_wtp_pc == 0| HP == 1, 1, 0),
-      future_HP_30 = ifelse(heatpump_direct > 1 & 
+      future_HP_low = ifelse(heatpump_direct == 1 & 
                               heatpump_wtp_pc <= 4000| HP == 1, 1, 0),
-      future_HP_110 = ifelse(heatpump_direct > 1 & 
+      future_HP_high = ifelse(heatpump_direct == 1 & 
                                heatpump_wtp_pc <= 8000| HP == 1, 1, 0),
       
-      future_IC_0 = ifelse(induction_direct > 1 &
+      future_IC_0 = ifelse(induction_direct == 1 &
                              induction_dv == 0| IC == 1, 1, 0),
-      future_IC_35 = ifelse(induction_direct > 1 &
+      future_IC_low = ifelse(induction_direct == 1 &
                               induction_dv <= 300| IC == 1, 1, 0),
-      future_IC_159 = ifelse(induction_direct > 1 &
+      future_IC_high = ifelse(induction_direct == 1 &
                                induction_dv <= 800| IC == 1, 1, 0)
     ) %>% 
     # mutate(across(matches("future"), ~ ifelse(is.na(.), 0, .))) %>% 
@@ -923,22 +1060,24 @@ data_clean <- function(data, further = NULL){
                   -elec_home_cost_HP,-elec_home_cost_IC,
                   -storage_own,-cooling_plan,-heating_plan,
                   -fastcharge_likely,
-                  -solstor_wtp_payback,-heatpump_wtp_payback, # remove payback
-                  -future_EV10
-                  
+                  -solstor_wtp_payback,-heatpump_wtp_payback,-ss_upfr_text,-ssupfront_num,-hpupfront_num,-evupfront_num,
+                  -primary_cooling_type_25_TEXT,-primary_heating_type_64_TEXT,-heatenergy_furnace,-heatenergy_boiler,-hotwater_energy_6_TEXT
+                  # -future_EV10
                   ) %>%
     relocate(wt_ca, .after = last_col()) %>%
     relocate(tractid, .after = last_col())
   
-  if(!is.null(further)){
+  if(!is.null(further)){ # after ML
     dat <- dat %>% 
       # left_join(psps, by = c("tractid" = "GEOID")) %>% 
       # left_join(charge, by = c("tractid" = "GEOID")) %>% 
-      dplyr::select(-ExternalReference, -home_own, -age, -gender,
-                    -tractid,
-                    -charging_access,-charging_5mile_r,
-                    -therm_summer,
-                    -yale_worried,-ccfuturemove
+      dplyr::select(-ExternalReference, -tractid,
+                    ### remove not significant or collinear variables
+                    -induction_direct, -heatpump_direct, -charging_access,
+                    -home_own, -charging_5mile_r, -charging_work, -vehicle_num,
+                    -born_us, -employment, -education, -race, -gender, -lowincome_sup,
+                    -elec_health, -upfrontpayback, -elec_safety, -ccinsure_lost,
+                    -ccpastmove, -elec_avail, -ccmove_where, -homevac, 
                     ) %>% 
       relocate(wt_ca, .after = last_col())
   }
@@ -1421,8 +1560,8 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   da_r <- data %>% 
     dplyr::select(# remove multicollinear variables
       
-      # remove predictors with substantial NAs
-      -heatpump_direct,-induction_direct,
+      # # remove predictors with substantial NAs
+      # -heatpump_direct,-induction_direct,
       
       # remove future adoption
       -starts_with("future")
@@ -1441,8 +1580,8 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
       mutate(!!ipt[i] := .data[[future_var]]) %>% 
       dplyr::select(# remove multicollinear variables
         
-        # remove predictors with substantial NAs
-        -heatpump_direct,-induction_direct,
+        # # remove predictors with substantial NAs
+        # -heatpump_direct,-induction_direct,
         
         # remove future adoption
         -starts_with("future")
@@ -1451,71 +1590,136 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   }
   
   
-  # binary
-  bina <- c(
-    "born_us",
+  if(is.null(scenario)){
+    # binary
+    bina <- c(
+      # "born_us",
+      "charging_5mile_f",
+      "vehicle_next_used",
+      # "vehicle_next_fuel",
+      # "charging_work",
+      
+      # "therm_winter",
+      
+      # "upfrontpayback",
+      "outage_generatorown",
+      "ccinsure_both"
+    ) %>% 
+      setdiff(remove)
     
-    # "charging_5mile_f",
-    "vehicle_next_used",
-    # "vehicle_next_fuel",
-    "charging_work",
+    # categorical variables: 
+    cat <- c(
+      # "race",
+      # "born_us",
+      "home_type",
+      "home_age",
+      # "employment",
+      
+      "peer_EV",
+      "peer_PV",
+      "peer_HP",
+      "peer_IC",
+      
+      # "charging_5mile_f",
+      # "vehicle_next_used",
+      # "vehicle_next_fuel",
+      # "charging_work",
+      
+      "primary_heating_type",
+      "primary_cooling_type",
+      
+      "kitchen_range_type",
+      "electrification"
+      # "upfrontpayback",
+      # "outage_generatorown",
+      # "ccmove_where"
+    ) %>% 
+      setdiff(remove)
     
-    "therm_winter",
+    exclusions <- list(
+      c("peer_EV", "peer_HP", "peer_IC"),
+      c("peer_PV", "peer_HP", "peer_IC"),
+      c("peer_EV", "peer_PV", "peer_IC"),
+      c("peer_EV", "peer_HP", "peer_PV")
+    )
+
+    if(i %in% c(1,5)){
+      cat <- cat %>% setdiff(exclusions[[1]])
+    }else{
+      cat <- cat %>% setdiff(exclusions[[i]])
+    }
     
-    "upfrontpayback",
-    "outage_generatorown",
-    "ccmove_where"
-  ) %>% 
-    setdiff(remove)
-  
-  # categorical variables: 
-  cat <- c("race",
-           # "born_us",
-           "home_type",
-           "employment",
-           
-           # "peer_EV",
-           # "peer_PV",
-           # "peer_HP",
-           # "peer_IC",
-           
-           # "charging_5mile_f",
-           # "vehicle_next_used",
-           # "vehicle_next_fuel",
-           # "charging_work",
-           
-           "primary_heating_type",
-           "primary_cooling_type",
-           # "therm_winter",
-           
-           "kitchen_range_type",
-           "electrification"
-           # "upfrontpayback",
-           # "outage_generatorown",
-           # "ccmove_where"
-  ) %>% 
-    setdiff(remove)
-  
-  # exclusions <- list(
-  #   c("peer_EV", "peer_HP", "peer_IC"),
-  #   c("peer_PV", "peer_HP", "peer_IC"),
-  #   c("peer_EV", "peer_PV", "peer_IC"),
-  #   c("peer_EV", "peer_HP", "peer_PV")
-  # )
-  # 
-  # if(i %in% c(1,5)){
-  #   cat <- cat %>% setdiff(exclusions[[1]])
-  # }else{
-  #   cat <- cat %>% setdiff(exclusions[[i]])
-  # }
+    
+  }else{
+    
+    # binary
+    bina <- c(
+      # "born_us",
+      # "charging_5mile_f",
+      "vehicle_next_used",
+      # "vehicle_next_fuel",
+      # "charging_work",
+      
+      # "therm_winter",
+      
+      # "upfrontpayback",
+      "outage_generatorown",
+      "ccinsure_both"
+    ) %>% 
+      setdiff(remove)
+    
+    # categorical variables: 
+    cat <- c(
+      # "race",
+      # "born_us",
+      "home_type",
+      # "employment",
+      
+      # "peer_EV",
+      # "peer_PV",
+      # "peer_HP",
+      # "peer_IC",
+      
+      # "charging_5mile_f",
+      # "vehicle_next_used",
+      # "vehicle_next_fuel",
+      # "charging_work",
+      
+      "primary_heating_type",
+      "primary_cooling_type",
+      # "therm_winter",
+      
+      "kitchen_range_type",
+      "electrification"
+      # "upfrontpayback",
+      # "outage_generatorown",
+      # "ccmove_where"
+    ) %>% 
+      setdiff(remove)
+    
+    # exclusions <- list(
+    #   c("peer_EV", "peer_HP", "peer_IC"),
+    #   c("peer_PV", "peer_HP", "peer_IC"),
+    #   c("peer_EV", "peer_PV", "peer_IC"),
+    #   c("peer_EV", "peer_HP", "peer_PV")
+    # )
+    # 
+    # if(i %in% c(1,5)){
+    #   cat <- cat %>% setdiff(exclusions[[1]])
+    # }else{
+    #   cat <- cat %>% setdiff(exclusions[[i]])
+    # }
+    
+    
+  }
   
   
   ftr <- c("climatezone",
            "dac",
-           "race",
-           "born_us",
+           # "race",
+           # "born_us",
            "home_type",
-           "employment",
+           # "employment",
            "home_age",
            
            "peer_EV",
@@ -1526,17 +1730,17 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
            "charging_5mile_f",
            "vehicle_next_used",
            # "vehicle_next_fuel",
-           "charging_work",
+           # "charging_work",
            
            "primary_heating_type",
            "primary_cooling_type",
-           "therm_winter",
+           # "therm_winter",
            
            "kitchen_range_type",
            "electrification",
-           "upfrontpayback",
+           # "upfrontpayback",
            "outage_generatorown",
-           "ccmove_where"
+           "ccinsure_both"
   ) %>% 
     setdiff(remove)
   
@@ -1558,7 +1762,7 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   }
   
   da_r <- da_r %>% 
-    mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
+    # mutate(across(starts_with("peer"), ~factor(.x, levels = c("neighbor","peer","none")))) %>% # avoid the sum contrast
     # mutate(race = relevel(race, ref = "White"),
     #        peer_PV = relevel(peer_PV, ref = "none"),
     #        peer_EV = relevel(peer_EV, ref = "none"),
@@ -1840,51 +2044,53 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
     "HP" = "HP",
     "IC" = "IC",
     
-    "born_us1" = "Born US",
-    "upfrontpayback1" = "Upfront prefer",
-    "therm_winter1" = "Thermostat use",
+    # "born_us1" = "Born US",
+    # "upfrontpayback1" = "Upfront prefer",
+    # "therm_winter1" = "Thermostat use",
     "outage_generatorown1" = "Own generator",
     
     "charging_5mile_f1" = "Fast charger",
     # "vehicle_next_fuel1" = "EV to buy",
     "vehicle_next_used1" = "New car",
     # "vehicle_next_when" = "Later to buy car",
-    "vehicle_1_miles" = "Milage",
-    "charging_work1" = "Charger at work",
+    "vehicle_comb_miles" = "Milage",
+    # "charging_work1" = "Charger at work",
     
-    "home_age" = "Newer home",
-    "rangeanxiety" = "more range for EV",
-    "ccmove_where1" = "Leave CA",
-    "homevac" = "Evacuation"
+    "home_ageNewer" = "Newer home",
+    "home_ageBrandNew" = "BrandNew home",
+    "home_ageOlder" = "Older home",
     
+    "rangeanxiety" = "More EV range",
+    "ccinsure_both1" = "Have insurance"
+    # "homevac" = "Evacuation"
   )
   
   reg <- dd %>% 
     mutate(var = recode(var, !!!name_mapping),
-           domain = ifelse(str_detect(var,"income|education|race|ideology|pid|US|employment"), "Sociodemo",
+           domain = ifelse(str_detect(var,"income|education|race|ideology|pid"), "Sociodemo",
                            
                            ifelse(str_detect(var, "home|household"), "Housing",
                                   
-                                  ifelse(str_detect(var,"primary|Thermostat"), "Heat/Cool",
+                                  ifelse(str_detect(var,"primary|Thermostat|cost"), "Heat/Cool",
                                          
                                          ifelse(var %in% dd$var[grep(pattern="kitchen",
                                                                      dd$var)], "Cook",
                                                 
                                                 ifelse(str_detect(var,"therm|burden|savemoney|health|safety|Upfront|direct|plan|electrification"), "Behavior",
                                                        
-                                                       ifelse(str_detect(var, "outage_impact|freq|dur|generator"), "Resilience", 
+                                                       ifelse(str_detect(var, "outage_impact|freq|dur|generator|avail|insurance"), "Resilience", 
                                                               
                                                               ifelse(str_detect(var, "peer"), "Peer Effect", 
                                                                      ifelse(str_detect(var, "Milage|charger|Charger|car|EV|l1l2|dc"), "Vehicle", 
                                                                             ifelse(str_detect(var, "payback|dv|pc"), "WTP",
-                                                                                   ifelse(str_detect(var, "cc|CA|Evacuation"), "Climate", var)))))))))),
+                                                                                   ifelse(str_detect(var, "cc|CA|Evacuation|yale"), "Climate", var)))))))))),
            domain = factor(domain, levels = c("Housing","Heat/Cool","Cook","Vehicle","Sociodemo","Behavior","Resilience","Climate","Peer Effect","WTP"))) %>% 
     
     mutate(IV = factor(IV, levels = ipt)) %>% 
     
     mutate(color = factor(color, levels = c("Y","N")))
   
-  return(list(reg, ds, dc, sum_fit))
+  return(list(reg, ds, dc, sum_fit, nobs(fit)))
 }
 
 ### get the marginal effects for DAC
@@ -2274,20 +2480,33 @@ mreg_var <- function(data, remove = NULL, i){
   return(list(da_r, model1vars))
 }
 
-
-mreg_var1 <- function(data, remove = NULL, i){
+### variable selection by ML
+mreg_var1 <- function(data, remove = NULL, i, future = NULL){
+  
+  na_counts <- colSums(is.na(data)) %>% sort(decreasing = TRUE)
+  na_df <- data.frame(variable = names(na_counts), na_count = na_counts) %>% 
+    filter(na_count > 1000)
+  
+    future_var <- sym(paste0("future_", ipt[i],"_",future))
+  
+  if(!is.null(future)){
+    data <- data %>% 
+      mutate(!!ipt[i] := .data[[future_var]]) 
+  }
   
   da_r <- data %>% 
-    dplyr::select(-na_df$variable,cost_combo_winter_final,cost_combo_summer_final,rangeanxiety,matches("future")) %>% 
-    dplyr::select(-ExternalReference,-tractid,-wt_ca,-ev_wtp_pc,-charging_access) %>% 
-    dplyr::select(-matches("future"),-PV)
-  
-  da_r <- da_r %>% 
-    mutate(across(where(is.numeric) & !c("PS","EV","HP","IC"), ~ scale(.) %>% as.numeric())) 
-  
+    dplyr::select(-na_df$variable,rangeanxiety,
+                  -induction_dv,-solstor_wtp_dv,-heatpump_wtp_pc,-ev_wtp_pc) %>% # decide to include or not
+    dplyr::select(-ExternalReference,-tractid,-charging_access) %>% 
+    dplyr::select(-PV, -matches("future"))
+
   categorical_vars <- c(
-    "climatezone","gender","race","employment","home_type","home_age","primary_heating_type",
-    "primary_cooling_type","kitchen_range_type","charging_access"
+    "climatezone","dac","gender","race","education","born_us","employment","home_type","home_age","home_own","charging_work",
+    "vehicle_next_used","primary_heating_type",
+    "primary_cooling_type","kitchen_range_type","charging_access",
+    "upfrontpayback","lowincome_sup","outage_generatorown",
+    "ccinsure_lost","ccmove_where","charging_5mile_r","charging_5mile_f",
+    "electrification","peer_EV","peer_PV","peer_HP","peer_IC","ccinsure_both"
   )
   
   for (var in categorical_vars) {
@@ -2296,6 +2515,9 @@ mreg_var1 <- function(data, remove = NULL, i){
       da_r[[var]] <- as.factor(da_r[[var]])
     }
   }
+  
+  da_r <- da_r %>% 
+    mutate(across(where(is.numeric) & !c("PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric())) 
   
   if(i %in% c(1,5)){
     # for PV, remove zone effect, tech

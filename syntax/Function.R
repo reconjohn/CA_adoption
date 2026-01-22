@@ -59,6 +59,7 @@ library(caret)
 library(xgboost)
 library(tidytext)
 library(ggnewscale)
+library(ggpattern)
 options(tigris_use_cache = TRUE, tigris_class = "sf")
 
 # uploading library 
@@ -694,7 +695,7 @@ data_cl <- function(data, further = NULL){
                                  ev_wtp_pc == "$10,000 in financial assistance"~ 10000,
                                  ev_wtp_pc == "$12,500 in financial assistance"~ 12500,
                                  ev_wtp_pc == "$15,000 in financial assistance"~ 15000,
-                                 ev_wtp_pc == "never"~ evupfront_num),
+                                 ev_wtp_pc == "never"~ 20000),
            # ev_wtp_pc = factor(ev_wtp_pc, levels = data$ev_wtp_pc %>% unique() %>% .[c(8,4,10,7,1,2,6,5,9)]) %>%
            #   as.numeric(),
            
@@ -712,7 +713,7 @@ data_cl <- function(data, further = NULL){
                                       solstor_wtp_dv == "$20,000 in financial assistance"~ 20000,
                                       solstor_wtp_dv == "$25,000 in financial assistance"~ 25000,
                                       solstor_wtp_dv == "$30,000 in financial assistance"~ 30000,
-                                      solstor_wtp_dv == "never"~ ssupfront_num),
+                                      solstor_wtp_dv == "never"~ 35000),
            # 
            # solstor_wtp_dv = case_when(solstor_wtp_dv == "always"~ 0,
            #                            solstor_wtp_dv == "$1,000 in financial assistance"~ 1000,
@@ -753,7 +754,7 @@ data_cl <- function(data, further = NULL){
                                        heatpump_wtp_pc == "$10,000 in financial assistance"~ 10000,
                                        heatpump_wtp_pc == "$12,500 in financial assistance"~ 12500,
                                        heatpump_wtp_pc == "$15,000 in financial assistance"~ 15000,
-                                       heatpump_wtp_pc == "never"~ hpupfront_num),
+                                       heatpump_wtp_pc == "never"~ 20000),
            # heatpump_wtp_pc = factor(heatpump_wtp_pc, levels = data$heatpump_wtp_pc %>% unique() %>% .[c(1,6,10,7,5,2,3,8,9)]) %>%
            #   as.numeric(),
            
@@ -780,7 +781,7 @@ data_cl <- function(data, further = NULL){
                                     induction_dv == "$800" ~ 800,
                                     induction_dv == "$900" ~ 900,
                                     induction_dv == "$1000" ~ 1000,
-                                    induction_dv == "never" ~ 1300),
+                                    induction_dv == "never" ~ 1200),
            # induction_dv = factor(induction_dv, levels = data$induction_dv %>% unique() %>% .[c(5,7,12,11,9,10,3,2,13,6,8)]) %>%
            #   as.numeric(),
            
@@ -3924,5 +3925,6 @@ data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = 
   dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
                 -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
 
+# data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean()
 
 # load("./data/results.Rdata") # effect

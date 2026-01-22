@@ -24,7 +24,7 @@ for(i in seq(from = 100, to = 15000, by = 100)){
 sub_ev <- data.frame()
 for(i in seq(from = 100, to = 15000, by = 100)){
   pt <- data %>% 
-    mutate(future = ifelse((vehicle_next_when > 2 & vehicle_next_fuel == 1 &
+    mutate(future = ifelse((vehicle_next_when == 1 & vehicle_next_fuel == 1 &
                                  ev_wtp_pc < i)| EV == 1, 1, 0)) %>% 
     group_by(LMI) %>% 
     summarise(mean = weighted.mean(future, wt_ca, na.rm = T)) %>% 
@@ -37,7 +37,7 @@ for(i in seq(from = 100, to = 15000, by = 100)){
 sub_hp <- data.frame()
 for(i in seq(from = 100, to = 13000, by = 100)){
   pt <- data %>% 
-    mutate(future = ifelse(heatpump_direct > 2 & 
+    mutate(future = ifelse(heatpump_direct == 1 & 
                              heatpump_wtp_pc < i| HP == 1, 1, 0)) %>% 
     group_by(LMI) %>% 
     summarise(mean = weighted.mean(future, wt_ca, na.rm = T)) %>% 
@@ -47,9 +47,9 @@ for(i in seq(from = 100, to = 13000, by = 100)){
 }
 
 sub_ic <- data.frame()
-for(i in seq(from = 100, to = 1700, by = 100)){
+for(i in seq(from = 100, to = 1300, by = 100)){
   pt <- data %>% 
-    mutate(future = ifelse(induction_direct > 2 &
+    mutate(future = ifelse(induction_direct == 1 &
                              induction_dv < i| IC == 1, 1, 0)) %>% 
     group_by(LMI) %>% 
     summarise(mean = weighted.mean(future, wt_ca, na.rm = T)) %>% 
@@ -73,7 +73,7 @@ curv <- rbind(
 )
 
 
-pess <- data.frame(subsidy = c(7600, 7500, 3000, 350),
+pess <- data.frame(subsidy = c(5000, 8000, 4000, 300),
                    tech = c("PV + Storage", "Electric vehicles", "Heat pumps","Induction stoves")) %>% 
   mutate(tech = recode(tech, 
                        "PS" = "PV + Storage",
@@ -82,7 +82,7 @@ pess <- data.frame(subsidy = c(7600, 7500, 3000, 350),
                        "IC" = "Induction stoves")) %>% 
   mutate(tech = factor(tech, levels = c("PV + Storage","Electric vehicles","Heat pumps","Induction stoves")))
 
-opt <- data.frame(subsidy = c(12700, 12000, 11000, 1590),
+opt <- data.frame(subsidy = c(12500, 12500, 8000, 800),
                    tech = c("PV + Storage", "Electric vehicles", "Heat pumps","Induction stoves")) %>% 
   mutate(tech = recode(tech, 
                        "PS" = "PV + Storage",
@@ -210,8 +210,7 @@ final_smooth_data %>%
 f5b <-final_smooth_data %>% 
   arrange(tech, LMI, subsidy) %>%
   group_by(tech, LMI) %>%
-  mutate(1+!
-    delta_subsidy = subsidy - lag(subsidy),
+  mutate(delta_subsidy = subsidy - lag(subsidy),
     delta_mean = mean - lag(mean),
     change = delta_mean/delta_subsidy
   ) %>% 
@@ -248,15 +247,15 @@ f5b <-final_smooth_data %>%
         plot.title=element_text(family="Franklin Gothic Demi", size=16, hjust = -0.03)) 
 
 
-# f4 <- ggarrange(f4a, f4b, nrow = 2,
-#                 common.legend = T, legend = "bottom",
-#                 heights = c(1,1.1),
-#                 labels = c("A", "B"),  # Adds labels to plots
-#                 label.x = 0,        # Adjust horizontal position of labels
-#                 label.y = 1,        # Adjust vertical position of labels
-#                 font.label = list(size = 14, face = "bold")
-# )
-# ggsave("./fig/f5.png",
-#        f5,
-#        width = 12, height = 6)
+f5 <- ggarrange(f5a, f5b, nrow = 2,
+                common.legend = T, legend = "bottom",
+                heights = c(1,1.1),
+                labels = c("A", "B"),  # Adds labels to plots
+                label.x = 0,        # Adjust horizontal position of labels
+                label.y = 1,        # Adjust vertical position of labels
+                font.label = list(size = 14, face = "bold")
+)
+ggsave("./fig/f5.png",
+       f5,
+       width = 12, height = 6)
 

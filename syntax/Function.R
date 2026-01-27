@@ -3928,3 +3928,71 @@ data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = 
 # data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean()
 
 # load("./data/results.Rdata") # effect
+
+### removing variables 
+VAR <- list()
+ipt <- c("PV","EV","HP","IC","PS")
+future <- 0
+for(i in 2:5){
+  
+  if(i == 1){
+    future_var <- sym(paste0("future_", ipt[i]))
+  }else{
+    future_var <- sym(paste0("future_", ipt[i],"_",future))
+  }
+  
+  
+  if(!is.null(future)){
+    da_r <- data %>% 
+      mutate(!!ipt[i] := .data[[future_var]]) %>% 
+      dplyr::select(# remove multicollinear variables
+        -starts_with("future")
+      ) 
+  }
+  
+  
+  da_r <- da_r %>%
+    mutate(across(where(is.numeric) & !c("PV","PS","EV","HP","IC","wt_ca"), ~ scale(.) %>% as.numeric()))
+  
+  if(i %in% c(1,5)){
+    # for PV, remove zone effect, tech
+    tract <- c("climatezone","dac","ev_wtp_pc","heatpump_wtp_pc","induction_dv","wt_ca",
+               "peer_EV","peer_HP","peer_IC","previous_heating_type",
+               "PV","PS","EV","HP","IC")
+    
+  }else if(i == 2){
+    # for EV, remove zone effect, tech
+    tract <- c("climatezone","dac","solstor_wtp_dv","heatpump_wtp_pc","induction_dv","wt_ca",
+               "peer_IC","peer_HP","peer_PV","previous_heating_type",
+               "PV","PS","EV","HP","IC")
+    
+  }else if(i == 3){
+    # for HP, remove zone effect, tech, heating/cooling type
+    tract <- c("climatezone","dac","ev_wtp_pc","solstor_wtp_dv","induction_dv","wt_ca",
+               "peer_EV","peer_IC","peer_PV",
+               "PV","PS","EV","HP","IC","primary_heating_type","primary_cooling_type")
+    
+    
+  }else{
+    # for IC, remove zone effect, tech, cooking type
+    tract <- c("climatezone","dac","ev_wtp_pc","solstor_wtp_dv","heatpump_wtp_pc","wt_ca",
+               "peer_EV","peer_HP","peer_PV","previous_heating_type",
+               "PV","PS","EV","HP","IC","kitchen_range_type")
+    
+  }
+  model1vars <- setdiff(names(da_r), tract)
+  fvar <- as.formula(paste(ipt[i], " ~", paste(model1vars, collapse = " + "), 
+                           "+ climatezone + dac"))
+  
+  da_rr <- da_r %>% 
+    dplyr::select(model1vars, climatezone, dac, ipt[i], wt_ca) %>% 
+    na.omit()
+  
+  
+  fit <- lm(fvar, weights = wt_ca, data = da_rr)
+  fit_step <- step(fit, direction = "both")
+  
+  VAR[[i-1]] <- attr(terms(fit_step), "term.labels")
+  
+}
+

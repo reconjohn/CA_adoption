@@ -10,9 +10,10 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 **Typical workflow:**
 
-1. `Function.R`: Run first. Initializes the environment and processes raw data. 
-2. `TEST.R`: Data validation including missing and correlation, and exploratory analysis.
-3. `ML.R`: Summarizing data, feature importance and machine learning model execution. 
+0. `Prep.R`: Processes raw data. 
+1. `TEST.R`: Data validation including missing and correlation, and exploratory analysis.
+2. `Function.R` and `Data.R`: Run first. Initializes the environment and processed data. 
+3. `ML.R`: Feature importance and machine learning model execution. 
 4. `State_mean.R:`: State-wide baseline analysis.
 5. `Sub_effect.R`: Detailed analysis of specific drivers. 
 6. `Spatial_effect.R`: Geographic distributions, spatial correlations, including MRP results.  
@@ -22,20 +23,9 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ## Script Descriptions
 
-### 1. `Function.R`
+### 1. `Prep.R` and `TEST.R`
 
-**Purpose:** Central setup, library management, and data processing.
-
-- Foundational script for the entire project; must be sourced at the beginning of any session.
-- Loads all required R packages (e.g., `dplyr`, `ggplot2`, `sf`).
-- Loads raw or pre-processed data (`.csv`, `.rds`, `.shp`) into the global environment.
-- Defines custom helper functions for data cleaning, plotting, and modeling.
-
----
-
-### 2. `TEST.R`
-
-**Purpose:** Exploratory data analysis and quality control.
+**Purpose:** Processing raw data with exploratory data analysis and quality control.
 
 - A sandbox for initial data investigation.
 - Contains data summaries, statistical tests, and visualizations.
@@ -46,11 +36,23 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ---
 
+
+### 2. `Function.R` and `Data.R`
+
+**Purpose:** Central setup, library management, and data processing.
+
+- Foundational script for the entire project; must be sourced at the beginning of any session.
+- Loads all required R packages (e.g., `dplyr`, `ggplot2`, `sf`).
+- Loads raw or pre-processed data (`.csv`, `.rds`, `.shp`) into the global environment.
+- Defines custom helper functions for data cleaning, plotting, and modeling.
+
+---
+
+
 ### 3. `ML.R`
 
 **Purpose:** Machine learning analysis for feature importance
 
-- Summarizes the dataset for predictive modeling.
 - Performs machine learning to identify key adoption drivers.
 - Builds predictive models (e.g., GLM, Lasso, and Gradient Boosting).
 

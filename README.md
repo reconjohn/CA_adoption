@@ -88,7 +88,7 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 - Visualizes adoption "hubs" and spatial autocorrelation patterns across the study domain.
 
 
-
+```text
 project-root/
 ├── .gitignore
 ├── README.md

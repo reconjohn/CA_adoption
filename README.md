@@ -88,3 +88,16 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 - Visualizes adoption "hubs" and spatial autocorrelation patterns across the study domain.
 
 
+
+project-root/
+├── .gitignore
+├── README.md
+├── data/
+│   └── data.RData
+├── syntax/
+│   ├── Data.R
+│   ├── file1.R
+│   ├── file2.R
+│   ├── ...
+│   └── other_scripts.R
+└── (all other files and folders ignored by .gitignore)

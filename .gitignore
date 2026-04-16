@@ -1,12 +1,13 @@
-data/
-fig/
-docs/
-.Rproj.user/
+# Ignore everything
+*
 
-model_selection.R
-scenario.R
-function_test.R
-spatial.R
-MRP.R
-waterfall.R
-subsidy.R
+# Allow this folder
+!data/
+!syntax/
+
+# Allow this specific file
+!data/data.RData
+
+# Keep .gitignore itself
+!.gitignore
+!README.md

@@ -1,7 +1,9 @@
+source("./syntax/Function.R")
+source("./syntax/Data.R")
+
 ###################################################################### Three tech.
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv")) %>% 
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv")) 
   
 ## average adoption
 d1 <- data %>% # only homeowners 
@@ -57,9 +59,8 @@ rates <- list(c(-0.25),
               c(-0.14,-0.23))
 
 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
                 -c("PS_int","EV_int","HP_int","IC_int"))
 
 result <- data.frame()
@@ -622,9 +623,9 @@ f1a <- daa %>%
 
 
 ################################################################################ EV 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
+
 ## average adoption
 d1 <- data %>% # only homeowners 
   summarise(across(
@@ -665,9 +666,8 @@ select_var <- list(c("peer_EV","rangeanxiety"))
 rates <- list(c(-2,-0.04,-0.26))
 
 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
                 -c("PS_int","EV_int","HP_int","IC_int"))
 
 result <- data.frame()
@@ -1065,9 +1065,8 @@ ggsave("./fig/f2.png",
 
 
 ############################################################################## DAC
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
 
 d1_dac <- data %>%
   filter(home_own == 1) %>% 
@@ -1114,9 +1113,8 @@ d1_dac <- data %>%
   mutate(dac = ifelse(dac == "0", "Non_DAC", "DAC"))  
 
 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
                 -c("PS_int","EV_int","HP_int","IC_int"))
 
 ### optimistic scenarios
@@ -1749,9 +1747,9 @@ f2b <- ggplot(df_diff, aes(
 
 
 ############################################################################### EV
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
+
 ## average adoption
 d1 <- data %>% # only homeowners 
   group_by(dac) %>% 
@@ -1800,9 +1798,8 @@ select_var <- list(c("peer_EV","rangeanxiety"))
 rates <- list(c(-0.26,-0.04,-2))
 
 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
+data <- dat %>% 
+  dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
                 -c("PS_int","EV_int","HP_int","IC_int"))
 
 result <- data.frame()
@@ -2275,8 +2272,6 @@ f2d <- ggplot(df_diff, aes(
     pattern = guide_legend(nrow = 1)
   )
 
-
-library(ggpubr)
 
 # top row: legend toward bottom
 f2a2 <- f2a + theme(

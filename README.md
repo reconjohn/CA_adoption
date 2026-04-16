@@ -1,21 +1,21 @@
 # Project: Policy levers, adoption gaps, and grid planning in California for equitable energy transition
 
-This repository contains the R scripts for a comprehensive analysis of technology adoption in California. The project models adoption patterns by validating survey data using Multilevel Regression with Post-stratification (MRP), analyzing the marginal effects of time-varying drivers like social influence and infrastructure improvements, and identifying key drivers using machine learning.
+This repository contains the R scripts for a comprehensive analysis of technology adoption in California. The project models adoption patterns by validating survey data, identifying key drivers using machine learning, analyzing the marginal effects of time-varying drivers like social influence and technology improvements, and predicting future adoption at the tract level, using Multilevel Regression with Post-stratification (MRP).
 
 ---
 
 ## Project Workflow
 
-The analysis is structured to be run in a logical sequence. Scripts build upon each other, starting with setup and data exploration, moving to specific model components, and concluding with synthesis and feature analysis.
+The analysis is structured to be run in a logical sequence. Scripts build upon each other, starting with setup and data exploration, moving to specific model components, and concluding with synthesis and analysis.
 
 **Typical workflow:**
 
-
 1. `Function.R`: Run first. Initializes the environment and processes raw data. 
-2. `TEST.R`: Data validation and exploratory analysis.
+2. `TEST.R`: Data validation including missing and correlation, and exploratory analysis.
 3. `ML.R`: Summarizing data, feature importance and machine learning model execution. 
 4. `State_mean.R:`: State-wide baseline analysis.
-5. `Sub_effect.R`, `Spatial_effect.R`: Detailed analysis of specific drivers and geographic distributions, including MRP results.  
+5. `Sub_effect.R`: Detailed analysis of specific drivers. 
+6. `Spatial_effect.R`: Geographic distributions, spatial correlations, including MRP results.  
 
 
 ---
@@ -35,12 +35,12 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ### 2. `TEST.R`
 
-**Purpose:** Exploratory Data Analysis (EDA) and Quality Control.
+**Purpose:** Exploratory data analysis and quality control.
 
 - A sandbox for initial data investigation.
 - Contains data summaries, statistical tests, and visualizations.
 - Checks data distributions, missing values, and outliers.
-- Performs initial correlation analysis (Pearson’s $r$) to identify preliminary relationships between technology classes (PS, EV, HP, IC).
+- Performs initial correlation analysis (Pearson’s $r$) to identify preliminary relationships among variables.
 - Helps form initial hypotheses for formal testing.
 
 
@@ -59,7 +59,7 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ### 4. `State_mean.R`
 
-**Purpose:** State-wide Average Analysis
+**Purpose:** State-wide average analysis
 
 - Calculates state-level adoption baselines in waterfall formats.
 - Measure impacts of different levels by Disadvantaged Community (DAC) assignment.
@@ -68,11 +68,11 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ### 5. `Sub_effect.R`
 
-**Purpose:** Specific Variable & Marginal Effect Analysis.
+**Purpose:** Specific variable & marginal effect analysis.
 
 - Analyzes the marginal effects of specific time-varying drivers.
-- Focuses on the impact of social contagion (peer effects) and infrastructure improvements (e.g., EV range anxiety) on adoption propensity.
-- Handles the decomposition of aggregated effects (referencing SI Figure S13).
+- Focuses on the impact of social contagion (peer effects) and technology improvements (e.g., EV range anxiety) on adoption propensity.
+- Handles the decomposition of aggregated effects.
 
 
 ---
@@ -82,9 +82,7 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 **Purpose:** Spatial analysis of patterns
 
 - Generates spatial projections of adoption probabilities.
-- Produces multi-panel maps comparing DAC vs. Non-DAC disparities (e.g., Gini Coefficients and Standard Deviation).
+- Produces multi-panel maps comparing DAC vs. Non-DAC disparities (e.g., Gini coefficients and standard deviation).
 - Visualizes adoption "hubs" and spatial autocorrelation patterns across the study domain.
 
 
-
----

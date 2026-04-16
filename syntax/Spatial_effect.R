@@ -1,20 +1,5 @@
-### final adoption by tract
-final <- data.frame()
-for(i in 1:4){
-  tp <- effect[[i]] %>% 
-    mutate(
-      peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE)
-      # home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
-    ) %>%
-    dplyr::select(-ends_with(c("New","Newer","peer","none"))) %>% 
-    pivot_longer(cols = c(Effect, MRP, Final), names_to = "key", values_to = "value") %>% 
-    mutate(key = factor(key, levels = c("MRP","Effect","Final"))) %>% 
-    filter(key == "Final") %>% 
-    dplyr::select(GEOID, class, value)
-  
-  final <- rbind(tp, final)
-}
-
+source("./syntax/Function.R")
+source("./syntax/Data.R")
 
 df <- final %>% 
   separate(class, into = c("tech", "scen"), sep = "_") %>% 
@@ -141,6 +126,23 @@ CA_c <- CA_t %>%
 
 
 ### mapping
+mmp <- CA_t %>% 
+  dplyr::select(GEOID) %>% 
+  left_join(final %>% 
+              separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
+  
+  filter(tech != "PV") %>% 
+  filter(scen == "high") %>% 
+  mutate(
+    tech = recode(tech,
+                  "PS" = "PV + Storage",
+                  "IC" = "Induction stoves",
+                  "HP" = "Heat pumps",
+                  "EV" = "Electric vehicles",
+                  "PV" = "Photovoltaics"),
+    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>%
+  na.omit()
+
 
 ### moran's I 
 moran_by_class <- mmp %>%
@@ -175,24 +177,6 @@ moran_by_class <- mmp %>%
       note = NA_character_
     )
   })
-
-
-mmp <- CA_t %>% 
-  dplyr::select(GEOID) %>% 
-  left_join(final %>% 
-              separate(class, into = c("tech", "scen"), sep = "_"), by = "GEOID") %>% 
-  
-  filter(tech != "PV") %>% 
-  filter(scen == "high") %>% 
-  mutate(
-    tech = recode(tech,
-                  "PS" = "PV + Storage",
-                  "IC" = "Induction stoves",
-                  "HP" = "Heat pumps",
-                  "EV" = "Electric vehicles",
-                  "PV" = "Photovoltaics"),
-    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>%
-  na.omit()
 
 tech_name <- c("PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves")
 mmap <- list()
@@ -380,9 +364,23 @@ for(i in 1:4){
 
 f5c <- ggarrange(plotlist = dac_map, nrow = 1)
 
+ggsave("./fig/f5.png",
+       ggarrange(f5a,
+                 f5c,
+                 f5y,
+                 nrow = 3, 
+                 heights = c(1,2,1.5),
+                 labels = c("A", "B", "C"),  # Adds labels to plots
+                 label.x = 0,        # Adjust horizontal position of labels
+                 label.y = 1,        # Adjust vertical position of labels
+                 vjust = 1,
+                 hjust = -1,
+                 font.label = list(size = 14, face = "bold")),
+       width = 12, height = 12)
 
-library(ineq)
-f5d <- map_dac %>% 
+
+
+s14 <- map_dac %>% 
   st_drop_geometry() %>% 
   group_by(tech, DAC) %>% 
   summarise(SD = sd(value),
@@ -410,25 +408,9 @@ f5d <- map_dac %>%
         panel.grid.minor.x = element_blank(),
         panel.grid.major.x = element_blank())
 
-ggsave("./fig/f5d.png",
-       f5d,
+ggsave("./fig/s14.png",
+       s14,
        width = 12, height = 6)
-
-
-ggsave("./fig/f5.png",
-       ggarrange(f5a,
-                 f5c,
-                 f5y,
-                 nrow = 3, 
-                 heights = c(1,2,1.5),
-                 labels = c("A", "B", "C"),  # Adds labels to plots
-                 label.x = 0,        # Adjust horizontal position of labels
-                 label.y = 1,        # Adjust vertical position of labels
-                 vjust = 1,
-                 hjust = -1,
-                 font.label = list(size = 14, face = "bold")),
-       width = 12, height = 12)
-
 
 
 select_var <- list(c("peer_effect"),
@@ -436,7 +418,6 @@ select_var <- list(c("peer_effect"),
                    c("peer_effect"),
                    c("peer_effect"),
                    c("peer_effect"))
-
 plot <- list()
 for(i in 1:4){
   plot[[i]] <- CA_t %>% 
@@ -472,7 +453,6 @@ for(i in 1:4){
 
 }
 
-
-ggsave("./fig/effect.png",
+ggsave("./fig/s13.png",
        ggarrange(plot[[4]], plot[[1]],plot[[2]],plot[[3]]),
        width = 12, height = 6)

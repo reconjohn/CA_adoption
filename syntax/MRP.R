@@ -1,6 +1,6 @@
 
 ### survey data
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
+# data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1)
 
 ### mrp data
 # mrp <- read_csv("./data/raw/mrp_scenariovars_tract_nov7.csv") %>% 
@@ -10,6 +10,7 @@ data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = 
 
 # CA_t <- get_acs("tract", state="CA", year = 2023, geometry = TRUE,
 #                                 variables= "B25026_001") # population
+
 
 
 ### comparison of adoption vs. MRP
@@ -81,6 +82,6 @@ CA_t %>%
 
 ### error check
 ttt <- mrp %>% 
-  mutate(larger = ifelse(future_PS_0 > future_PS_low, 1, 0)) 
+  mutate(larger = ifelse(PS > future_PS_0, 1, 0)) 
 
 ttt$larger %>% sum(na.rm = T)

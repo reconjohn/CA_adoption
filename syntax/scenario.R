@@ -4,42 +4,67 @@ ggsave <- function(..., bg = 'white') ggplot2::ggsave(..., bg = bg)
 remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")
 
 ### mapping the final adoption 
-for(i in 1:5){
-  plot <- CA_t %>% 
-    dplyr::select(GEOID) %>% 
-    left_join(dplyr::bind_rows(effect[(2*i-1):(2*i)]) %>% 
-                mutate(
-                  peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE),
-                  home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
-                ) %>%
-                dplyr::select(-ends_with(c("New","Older","peer","none"))), 
-              by = "GEOID") %>% 
-    na.omit() %>% 
-    pivot_longer(cols = c(Effect, MRP, Final), names_to = "key", values_to = "value") %>% 
-    mutate(key = factor(key, levels = c("MRP","Effect","Final"))) %>% 
+for(i in 1:4){
+  plot <- CA_t %>%
+    dplyr::select(GEOID) %>%
+    left_join(
+      effect[[i]] %>%
+        mutate(peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])),
+                                     na.rm = TRUE)) %>%
+        dplyr::select(-ends_with(c("New","Older","peer","none"))),
+      by = "GEOID"
+    ) %>%
+    na.omit() %>%
+    pivot_longer(cols = c(Effect, MRP, Final),
+                 names_to = "key",
+                 values_to = "value") %>%
+    mutate(key = factor(key, levels = c("MRP", "Effect", "Final"))) %>%
     ggplot() +
-    geom_sf(fill = "white", color = "gray0") + # US border
-    geom_sf(aes(fill = value), color = NA, size = 0.3) +
-    facet_grid(class~key) +
+    geom_sf(fill = "white", color = "gray0") +
     
+    # --- MRP ---
+    geom_sf(data = ~subset(.x, key == "MRP"),
+            aes(fill = value), color = NA) +
+    scale_fill_viridis_c(option = "magma", name = "MRP",
+                         guide = guide_colorbar(title.position = "top", title.hjust = 0.5, 
+                                                barwidth = 12, order = 1)) +
+    
+    ggnewscale::new_scale_fill() +
+    
+    # --- Effect ---
+    geom_sf(data = ~subset(.x, key == "Effect"),
+            aes(fill = value), color = NA) +
+    scale_fill_viridis_c(option = "plasma", name = "Effect",
+                         guide = guide_colorbar(title.position = "top", title.hjust = 0.5, 
+                                                barwidth = 12, order = 2)) +
+    
+    ggnewscale::new_scale_fill() +
+    
+    # --- Final ---
+    geom_sf(data = ~subset(.x, key == "Final"),
+            aes(fill = value), color = NA) +
+    scale_fill_viridis_c(option = "inferno", name = "Final",
+                         guide = guide_colorbar(title.position = "top", title.hjust = 0.5, 
+                                                barwidth = 12, order = 3)) +
+    
+    facet_grid(class ~ key, switch = "y") +
     theme_minimal() +
-    # scale_fill_distiller(palette = "RdBu", direction = -1) +
-    scale_fill_viridis_c(option = "magma") +
-    
-    labs(title = "Final adoption by scenario", fill = "") +
-    theme(legend.position = "right",
-          # legend.text=element_text(size=6),
-          # legend.key.size = unit(0.3, 'cm'),
-          strip.text = element_text(size = 14, face = "bold"),
-          axis.text.x = element_blank(),
-          axis.text.y = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.grid.major = element_blank(),
-          plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0))
+    theme(
+      legend.position = "bottom",
+      legend.box = "horizontal",           # Align legends horizontally
+      legend.direction = "horizontal",
+      legend.box.just = "center",
+      legend.spacing.x = unit(1.5, "cm"),   # Adjust this to push legends under columns
+      strip.text = element_text(size = 14, face = "bold"),
+      axis.text = element_blank(),
+      panel.grid = element_blank(),
+      plot.title = element_text(family = "Franklin Gothic Demi", size = 15, hjust = 0)
+    ) +
+    labs(title = "Final adoption by scenario")
   
-  ggsave(paste0("./fig/",ipt[i],"_final.png"),
+  ggsave(paste0("./fig/",ipt[i+1],"_final.png"),
          plot,
-         width = 12, height = 8)
+         width = 12, height = 6)
   
 }
 
@@ -48,8 +73,8 @@ final <- data.frame()
 for(i in 1:5){
   tp <- dplyr::bind_rows(effect[(2*i-1):(2*i)]) %>% 
                 mutate(
-                  peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE),
-                  home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
+                  peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE)
+                  # home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
                 ) %>%
                 dplyr::select(-ends_with(c("New","Newer","peer","none"))) %>% 
     pivot_longer(cols = c(Effect, MRP, Final), names_to = "key", values_to = "value") %>% 
@@ -211,7 +236,10 @@ for(i in 1:5){
   
 }
 
-###################################################################### HO
+###################################################################### Three tech.
+data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
+  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
+                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
 ## average adoption
 d1 <- data %>% # only homeowners 
       filter(home_own == 1) %>% 
@@ -233,7 +261,8 @@ d1 <- data %>% # only homeowners
   mutate(
     tech = str_extract(key, "(PV|PS|EV|HP|IC)"),
     scenario = case_when(
-      !str_detect(key, "^future") ~ "current",
+      str_detect(key, "_int") ~ "Intended",
+      str_detect(key, "^(PV|PS|EV|HP|IC)") ~ "current",
       str_detect(key, "0|(PV$)") ~ "Future",
       str_detect(key, "low") ~ "Lsubsidy",
       str_detect(key, "high") ~ "Hsubsidy",
@@ -245,9 +274,10 @@ d1 <- data %>% # only homeowners
   mutate(
     future = Future - current,
     low.subsidy = Lsubsidy - Future,
-    high.subsidy = Hsubsidy - Lsubsidy
+    high.subsidy = Hsubsidy - Lsubsidy,
+    intended = Intended - Hsubsidy
   ) %>%
-  dplyr::select(-Future,-Lsubsidy,-Hsubsidy)
+  dplyr::select(-Future,-Lsubsidy,-Hsubsidy,-Intended)
 
 
 # ### scenario waterfall
@@ -289,17 +319,23 @@ d1 <- data %>% # only homeowners
   
 
 ### optimistic scenarios
-select_var <- list(c("peer","home_age"),
-                   c("peer","charging_5mile_f1","rangeanxiety","home_age"),
+select_var <- list(c("peer"),
+                   c("peer","rangeanxiety"),
                    c("peer"),
                    c("peer"),
-                   c("peer","home_age"))
+                   c("peer"))
 
-rates <- list(c(0,0.2,-0.14,-0.23), 
-              c(0,0.2,-2, 0.32,-0.04,-0.26), # brandnew, newer, range, charge, peer, none, 
-              c(0,-0.25),
-              c(0,-0.17),
-              c(0,0.2,-0.14,-0.23))
+rates <- list(c(-0.14,-0.23), 
+              c(-2,-0.04,-0.26), # brandnew, newer, range, charge, peer, none, 
+              c(-0.25),
+              c(-0.17),
+              c(-0.14,-0.23))
+
+
+data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
+  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
+                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
+                -c("PS_int","EV_int","HP_int","IC_int"))
 
 result <- data.frame()
 for(k in 2:5){
@@ -325,8 +361,8 @@ for(k in 2:5){
   rd <- df %>%
     summarise(
       peer            = sum(effect[str_detect(var, "peer")], na.rm = TRUE),
-      home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
-      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
+      # home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
+      # charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = ipt[k])
@@ -336,11 +372,12 @@ for(k in 2:5){
   
 
 stage_order <- c("Current", "Future", "Low", "High", 
-                 "Peer effects", "Home built after 2020", "Fast charger", "Range")
+                 "Peer effects", "Range","Intended")
 
 df_long <- d1 %>% 
+  filter(tech != "PV") %>% 
   left_join(result, by = "tech")  %>%
-  pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
+  pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>% 
   mutate(stage = recode(stage,
                         "current" = "Current",
                         "future" = "Future",
@@ -348,11 +385,13 @@ df_long <- d1 %>%
                         "high.subsidy" = "High",
                         
                         "peer" = "Peer effects",
-                        "home_age" = "Home built after 2020",
-                        "charging_5mile" = "Fast charger",
-                        "rangeanxiety" = "Range")) %>% 
+                        # "home_age" = "Home built after 2020",
+                        # "charging_5mile" = "Fast charger",
+                        "rangeanxiety" = "Range",
+                        "intended" = "Intended")) %>% 
   
   mutate(stage = factor(stage, levels = stage_order)) %>% 
+  arrange(stage) %>% 
   group_by(tech) %>%
   mutate(
     value = replace_na(value, 0),
@@ -372,8 +411,9 @@ dff <- df_long %>%
   ungroup() %>% # Ungrouping is good practice after mutations
   mutate(class = ifelse(stage %in% c("Current","Future"), "No subsidy",
                         ifelse(stage %in% c("Low","High"), "Policy intervention",
-                               "Time variant")),
-         class = factor(class, levels = c("No subsidy","Policy intervention","Time variant")))
+                               ifelse(stage %in% c("Intended"), "Rest",
+                               "Time variant"))),
+         class = factor(class, levels = c("No subsidy","Policy intervention","Time variant","Rest")))
 
 
 segment_data <- dff %>%
@@ -476,18 +516,18 @@ opt_result <- dff %>%
 ### pessimistic scenarios
 tech <- c("PV","EV","HP","IC","PS")
 
-select_var <- list(c("peer","home_age"),
-                   c("peer","charging_5mile_f1","rangeanxiety", "home_age"),
+select_var <- list(c("peer"),
+                   c("peer","rangeanxiety"),
                    c("peer"),
                    c("peer"),
-                   c("peer","home_age"))
+                   c("peer"))
 
 
-rates_p <- list(c(0,0.09,0,-0.18), #new, newer, peer, none
-                c(0, 0.09, -1, 0.16,0,-0.15), #range, charging, peer, none, 
+rates_p <- list(c(0,-0.18), #new, newer, peer, none
+                c(-1,0,-0.15), #range, peer, none, 
                 c(0,-0.11),
                 c(0,-0.07),
-                c(0,0.09,0,-0.18))
+                c(0,-0.18))
 
 result_p <- data.frame()
 for(k in 2:5){
@@ -512,8 +552,8 @@ for(k in 2:5){
   rd <- df %>%
     summarise(
       peer            = sum(effect[str_detect(var, "peer")], na.rm = TRUE),
-      home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
-      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
+      # home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
+      # charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = tech[k])
@@ -523,6 +563,7 @@ for(k in 2:5){
 
 
 df_long_p <- d1 %>% 
+  dplyr::select(-intended) %>% 
   dplyr::select(-high.subsidy) %>% 
   left_join(result_p, by = "tech")  %>%
   pivot_longer(cols = -tech, names_to = "stage", values_to = "value") %>%
@@ -533,11 +574,11 @@ df_long_p <- d1 %>%
                         "high.subsidy" = "High",
                       
                         "peer" = "Peer effects",
-                        "home_age" = "Home built after 2020",
-                        "charging_5mile" = "Fast charger",
+                        # "home_age" = "Home built after 2020",
+                        # "charging_5mile" = "Fast charger",
                         "rangeanxiety" = "Range")) %>% 
   mutate(stage = factor(stage, levels = stage_order)) %>% 
-  
+  arrange(stage) %>% 
   group_by(tech) %>%
   mutate(
     value = replace_na(value, 0),
@@ -599,6 +640,7 @@ pess_result <- dff %>%
 
 
 d <- opt_result %>% 
+  mutate(id = ifelse(stage == "Intended", 5, id)) %>% 
   mutate(
     id = ifelse(class == "Time variant", 4, id)   # stack on top of More subsidy
   ) %>% 
@@ -628,7 +670,7 @@ pattern_vals <- c(
 d %>%
   mutate(sta = as.character(stage),
          ST = ifelse(class == "Time variant", sta, "Other"),
-         ST = factor(ST, levels = c("Peer effects","Home built after 2020","Fast charger","Range", "Other"))) %>% 
+         ST = factor(ST, levels = c("Peer effects","Range", "Other"))) %>% 
   ggplot(aes(x = stage)) +
   
   geom_rect_pattern(
@@ -657,7 +699,7 @@ d %>%
   
   facet_wrap(~ tech, scales = "free_x", nrow = 1) +
   
-  scale_x_discrete(limits = c("Current", "Future", "Low", "High")) +
+  scale_x_discrete(limits = c("Current", "Future", "Low", "High","Other")) +
   
   scale_y_continuous(labels = scales::comma) +
   
@@ -830,17 +872,17 @@ d1 <- data %>% # only homeowners
 
 
 ### optimistic scenarios
-select_var <- list(c("peer","home_age"),
-                   c("peer","charging_5mile_f1","rangeanxiety","home_age"),
+select_var <- list(c("peer"),
+                   c("peer","rangeanxiety"),
                    c("peer"),
                    c("peer"),
-                   c("peer","home_age"))
+                   c("peer"))
 
-rates <- list(c(0,0.2,-0.14,-0.23), 
-              c(0,0.2,-2, 0.32,-0.04,-0.26), # brandnew, newer, range, charge, peer, none, 
+rates <- list(c(-0.14,-0.23), 
+              c(-2,-0.04,-0.26), # range, peer, none, 
               c(0,-0.25),
               c(0,-0.17),
-              c(0,0.2,-0.14,-0.23))
+              c(-0.14,-0.23))
 
 result <- data.frame()
 for(k in 2:5){
@@ -867,8 +909,8 @@ for(k in 2:5){
   rd <- df %>%
     summarise(
       peer            = sum(effect[str_detect(var, "peer")], na.rm = TRUE),
-      home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
-      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
+      # home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
+      # charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = ipt[k])
@@ -878,7 +920,7 @@ for(k in 2:5){
 
 
 stage_order <- c("Current", "Future", "Low", "High", 
-                 "Peer effects", "Home built after 2020", "Fast charger", "Range")
+                 "Peer effects", "Range")
 
 df_long <- d1 %>% 
   left_join(result, by = "tech")  %>%
@@ -890,8 +932,8 @@ df_long <- d1 %>%
                         "high.subsidy" = "High",
                         
                         "peer" = "Peer effects",
-                        "home_age" = "Home built after 2020",
-                        "charging_5mile" = "Fast charger",
+                        # "home_age" = "Home built after 2020",
+                        # "charging_5mile" = "Fast charger",
                         "rangeanxiety" = "Range")) %>% 
   
   mutate(stage = factor(stage, levels = stage_order)) %>% 
@@ -951,18 +993,18 @@ opt_result <- dff %>%
 ### pessimistic scenarios
 tech <- c("PV","EV","HP","IC","PS")
 
-select_var <- list(c("peer","home_age"),
-                   c("peer","charging_5mile_f1","rangeanxiety", "home_age"),
+select_var <- list(c("peer"),
+                   c("peer","rangeanxiety"),
                    c("peer"),
                    c("peer"),
-                   c("peer","home_age"))
+                   c("peer"))
 
 
-rates_p <- list(c(0,0.09,0,-0.18), #new, newer, peer, none
-                c(0, 0.09, -1, 0.16,0,-0.15), #range, charging, peer, none, 
+rates_p <- list(c(0,-0.18), #new, newer, peer, none
+                c(-1,0,-0.15), #range, charging, peer, none, 
                 c(0,-0.11),
                 c(0,-0.07),
-                c(0,0.09,0,-0.18))
+                c(0,-0.18))
 
 result_p <- data.frame()
 for(k in 2:5){
@@ -988,8 +1030,8 @@ for(k in 2:5){
   rd <- df %>%
     summarise(
       peer            = sum(effect[str_detect(var, "peer")], na.rm = TRUE),
-      home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
-      charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
+      # home_age            = sum(effect[str_detect(var, "home_age")], na.rm = TRUE),
+      # charging_5mile  = sum(effect[str_detect(var, "charging_5mile_f1")], na.rm = TRUE),
       rangeanxiety    = sum(effect[str_detect(var, "rangeanxiety")], na.rm = TRUE)
     ) %>% 
     mutate(tech = tech[k])
@@ -1009,8 +1051,8 @@ df_long_p <- d1 %>%
                         "high.subsidy" = "High",
                         
                         "peer" = "Peer effects",
-                        "home_age" = "Home built after 2020",
-                        "charging_5mile" = "Fast charger",
+                        # "home_age" = "Home built after 2020",
+                        # "charging_5mile" = "Fast charger",
                         "rangeanxiety" = "Range")) %>% 
   mutate(stage = factor(stage, levels = stage_order)) %>% 
   
@@ -1096,7 +1138,7 @@ pattern_vals <- c(
 da %>%
   mutate(sta = as.character(stage),
          ST = ifelse(class == "Time variant", sta, "Other"),
-         ST = factor(ST, levels = c("Peer effects","Home built after 2020","Fast charger","Range", "Other"))) %>% 
+         ST = factor(ST, levels = c("Peer effects","Range", "Other"))) %>% 
   ggplot(aes(x = stage)) +
   
   geom_rect_pattern(
@@ -1150,10 +1192,12 @@ da %>%
     panel.grid.minor.x = element_blank()
   )
 
+
 ### combination 
 daa <- d %>% 
   mutate(across(c("value"), ~ .x*0.55)) %>% 
   left_join(da %>% 
+              mutate(value = ifelse(stage == "Peer effects" & tech != "Electric vehicles", 0, value)) %>% 
               mutate(across(c("value"), ~ .x*0.45)) %>% 
               dplyr::select(tech, stage, value, scene), by = c("tech","stage","scene")) %>% 
   mutate(value.y = ifelse(is.na(value.y), 0, value.y),
@@ -1171,6 +1215,7 @@ daa <- d %>%
     d %>% 
       mutate(across(c("value"), ~ .x*0.55)) %>% 
       left_join(da %>% 
+                  mutate(value = ifelse(stage == "Peer effects" & tech != "Electric vehicles", 0, value)) %>% 
                   mutate(across(c("value"), ~ .x*0.45)) %>% 
                   dplyr::select(tech, stage, value, scene), by = c("tech","stage","scene")) %>% 
       mutate(value.y = ifelse(is.na(value.y), 0, value.y),
@@ -1182,6 +1227,7 @@ daa <- d %>%
         d %>% 
           mutate(across(c("value"), ~ .x*0.55)) %>% 
           left_join(da %>% 
+                      mutate(value = ifelse(stage == "Peer effects" & tech != "Electric vehicles", 0, value)) %>% 
                       mutate(across(c("value"), ~ .x*0.45)) %>% 
                       dplyr::select(tech, stage, value, scene), by = c("tech","stage","scene")) %>% 
           mutate(value.y = ifelse(is.na(value.y), 0, value.y),
@@ -1196,7 +1242,44 @@ daa <- d %>%
         end = start + value
       ) %>% 
       filter(scene == "Pessimistic")
-  ) 
+  ) %>% 
+  dplyr::select(-value.x,-value.y) 
+
+
+daa1 <- daa %>% 
+  mutate(across(c(value,start,end), ~ .x*0.92))
+
+### add new built 
+# PS 0.95, 0.9, HP 0.9, 0.85, IC 0.8, 0.7
+
+
+
+add_values <- tibble(
+  tech = rep(c("PV + Storage","Heat pumps","Induction stoves"), each = 3),
+  id    = rep(c(2, 3, 4), 3),
+  value = c(c(c(0.9, 0.9) * 7.5, 0.95*18.4),
+            c(c(0.75, 0.75) *7.5, 0.85*18.4),
+            c(c(0.3, 0.3)*7.5, 0.4*18.4))
+)
+
+# extract the correct 'start' for each id (the last end value)
+last_end <- daa1 %>%
+  group_by(tech, id) %>%
+  summarise(start = max(end), .groups = "drop") %>% 
+  filter(tech != "Electric vehicles")
+
+# compute end = value + start
+new_rows <- add_values %>%
+  left_join(last_end, by = c("tech","id")) %>%
+  mutate(end = start + value,
+         stage = "New built",
+         scene = "Optimistic",
+         label_val = NA,
+         class = "Time variant")
+
+# bind to original data
+daa <- bind_rows(daa1, new_rows) %>%
+  arrange(id, start) 
 
 
 # Identify the time-variant stages
@@ -1216,7 +1299,7 @@ pattern_vals <- c(
 daa %>%
   mutate(sta = as.character(stage),
          ST = ifelse(class == "Time variant", sta, "Other"),
-         ST = factor(ST, levels = c("Peer effects","Home built after 2020","Fast charger","Range", "Other"))) %>% 
+         ST = factor(ST, levels = c("Peer effects","Range","New built", "Other"))) %>%
   ggplot(aes(x = stage)) +
   
   geom_rect_pattern(
@@ -1245,7 +1328,7 @@ daa %>%
   
   facet_wrap(~ tech, scales = "free_x", nrow = 1) +
   
-  scale_x_discrete(limits = c("Current", "Future", "Low", "High")) +
+  scale_x_discrete(limits = c("Current", "Future", "Low", "High", "Intended")) +
   
   scale_y_continuous(labels = scales::comma) +
   

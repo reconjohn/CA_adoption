@@ -213,18 +213,18 @@ dac_tract <- read_csv(file = "../DAC/data/DAC_CA_censustract.csv") %>%
   dplyr::select(GEOID, sample)
 
 
-burden <- effect[[9]] %>% # PS optimistic
+burden <- effect[[4]] %>% # PS optimistic
   left_join(mrp %>% 
               dplyr::select(GEOID, future_PS_0), by = "GEOID") %>% 
   mutate(PV_increase = (Final - future_PS_0)*-4) %>% 
   dplyr::select(GEOID, PV_increase) %>% 
-  left_join(effect[[3]] %>% # EV optimistic
+  left_join(effect[[1]] %>% # EV optimistic
               left_join(mrp %>% 
                           dplyr::select(GEOID, future_EV_0), by = "GEOID") %>% 
               mutate(EV_increase = (Final - future_EV_0)*2) %>% 
               dplyr::select(GEOID, EV_increase),
             by = "GEOID") %>% 
-  left_join(effect[[5]] %>% # HP optimistic
+  left_join(effect[[2]] %>% # HP optimistic
               left_join(mrp %>% 
                           dplyr::select(GEOID, future_HP_0), by = "GEOID") %>% 
               mutate(HP_increase = (Final - future_HP_0)*2) %>% 

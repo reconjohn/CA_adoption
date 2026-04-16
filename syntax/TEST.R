@@ -19,13 +19,19 @@ na_df <- data.frame(variable = names(na_counts), na_count = na_counts) %>%
   filter(na_count > 1000)
 
 # Create the plot
-ggplot(na_df, aes(x = reorder(variable, na_count), y = na_count)) +
+missing_plot <- ggplot(na_df, aes(x = reorder(variable, na_count), y = na_count)) +
   geom_bar(stat = "identity", fill = "steelblue") +
   coord_flip() +  # Flip axes for better readability
   labs(title = "NA Counts by Variable",
        x = "Variable",
        y = "Number of NA Values") +
-  theme_minimal()
+  theme_minimal(base_size = 16)
+
+
+
+ggsave("./fig/missing.png",
+       missing_plot,
+       width = 12, height = 8)
 
 
 ### remove those with NAs
@@ -1179,10 +1185,11 @@ for(i in 2:5){
   
 }
 
-### final model 
+### regression results 
 data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
   dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
-                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"))
+                -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
+                -c("PS_int","EV_int","HP_int","IC_int"))
 
 tech <- c("PV","EV","HP","IC","PS")
 for(k in 2:5){
@@ -1193,36 +1200,102 @@ for(k in 2:5){
                future = 0)
   
   a <- reg_plot(b_ev[[1]], tech[k])
-  b <- zone_plot(b_ev[[2]], "Climate")
-  c <- zone_plot(b_ev[[3]], "DAC")
-  d <- map_pl(dat_pr(b_ev[[2]], b_ev[[3]]), tech[k])
+  b <- zone_plot0(b_ev[[2]], "Climate")
+  # c <- zone_plot(b_ev[[3]], "DAC")
+  d <- map_pl(dat_pr(b_ev[[2]]), tech[k])
   
   fig <- ggarrange(a, 
-                   ggarrange(b,c,d, nrow = 1),
+                   ggarrange(b,d, nrow = 1),
                    nrow = 2,
                    heights = c(2,1))
   
   ggsave(paste0("./fig/",tech[k],".png"),
          fig,
-         width = 12, height = 8)
+         width = 12, height = 12)
+}
+
+
+### final mapping
+remove <- c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv")
+
+### mapping the final adoption 
+for(i in 1:4){
+  plot <- CA_t %>%
+    dplyr::select(GEOID) %>%
+    left_join(
+      effect[[i]] %>%
+        mutate(peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])),
+                                     na.rm = TRUE)) %>%
+        dplyr::select(-ends_with(c("New","Older","peer","none"))),
+      by = "GEOID"
+    ) %>%
+    na.omit() %>%
+    pivot_longer(cols = c(Effect, MRP, Final),
+                 names_to = "key",
+                 values_to = "value") %>%
+    mutate(key = factor(key, levels = c("MRP", "Effect", "Final"))) %>%
+    ggplot() +
+    geom_sf(fill = "white", color = "gray0") +
+    
+    # --- MRP ---
+    geom_sf(data = ~subset(.x, key == "MRP"),
+            aes(fill = value), color = NA) +
+    scale_fill_viridis_c(option = "magma", name = "MRP",
+                         guide = guide_colorbar(title.position = "top", title.hjust = 0.5, 
+                                                barwidth = 12, order = 1)) +
+    
+    ggnewscale::new_scale_fill() +
+    
+    # --- Effect ---
+    geom_sf(data = ~subset(.x, key == "Effect"),
+            aes(fill = value), color = NA) +
+    scale_fill_viridis_c(option = "plasma", name = "Effect",
+                         guide = guide_colorbar(title.position = "top", title.hjust = 0.5, 
+                                                barwidth = 12, order = 2)) +
+    
+    ggnewscale::new_scale_fill() +
+    
+    # --- Final ---
+    geom_sf(data = ~subset(.x, key == "Final"),
+            aes(fill = value), color = NA) +
+    scale_fill_viridis_c(option = "inferno", name = "Final",
+                         guide = guide_colorbar(title.position = "top", title.hjust = 0.5, 
+                                                barwidth = 12, order = 3)) +
+    
+    facet_grid(class ~ key, switch = "y") +
+    theme_minimal() +
+    theme(
+      legend.position = "bottom",
+      legend.box = "horizontal",           # Align legends horizontally
+      legend.direction = "horizontal",
+      legend.box.just = "center",
+      legend.spacing.x = unit(1.5, "cm"),   # Adjust this to push legends under columns
+      strip.text = element_text(size = 14, face = "bold"),
+      axis.text = element_blank(),
+      panel.grid = element_blank(),
+      plot.title = element_text(family = "Franklin Gothic Demi", size = 15, hjust = 0)
+    ) +
+    labs(title = "Final adoption by scenario")
+  
+  ggsave(paste0("./fig/",ipt[i+1],"_final.png"),
+         plot,
+         width = 12, height = 6)
+  
 }
 
 
 ### scenario
 effect <- list()
 for(i in 2:5){
-  future <- c("high","low")
-  scene <- c("High","Low")
+  future <- "high"
   
-  for(j in 1:2){
     f_d <- final_ef_peer(data %>%
                            dplyr::select(VAR[[i-1]], climatezone, dac, matches("PV|PS|EV|HP|IC"),wt_ca),
-                         i, future[j]) %>%
-      mutate(class = paste0(ipt[i],"_",scene[j]))
+                         i, future) %>%
+      mutate(class = paste0(ipt[i],"_",future))
     
     effect <- append(effect, list(f_d))
-    
-  }
+
 }
 
 df_common <- lapply(effect, function(df) df[, c("GEOID","Effect","Final","class"), drop = FALSE])

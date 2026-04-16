@@ -16,11 +16,8 @@ reg_plot(ps[[1]], "PS")
 tech <- c("PV","EV","HP","IC","PS")
 for(k in 1:5){
   
-  b_ev <- mreg(read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
-                 data_process(ev = c("Fully electric")) %>% 
-                 data_clean(1), 
-               remove = c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv",
-                          "education","employment"),
+  b_ev <- mreg(data, 
+               remove = c("education","employment"),
                i = k)
   
   a <- reg_plot(b_ev[[1]], tech[k])

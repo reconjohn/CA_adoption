@@ -2,5 +2,11 @@ data/
 fig/
 docs/
 .Rproj.user/
-TEST.R
+
 model_selection.R
+scenario.R
+function_test.R
+spatial.R
+MRP.R
+waterfall.R
+subsidy.R

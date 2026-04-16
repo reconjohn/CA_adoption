@@ -1,6 +1,6 @@
-# Project: Policy levers, adoption gaps, and grid impacts in California for equitable energy transition
+# Project: Policy levers, adoption gaps, and grid planning in California for equitable energy transition
 
-This repository contains the R scripts for a comprehensive analysis of technology adoption in California. The project models adoption patterns by validating survey data, analyzing the impacts of subsidies and peer effects, examining spatial distributions, and identifying key drivers using machine learning. The final output synthesizes these findings into predictive "what-if" scenarios.
+This repository contains the R scripts for a comprehensive analysis of technology adoption in California. The project models adoption patterns by validating survey data using Multilevel Regression with Post-stratification (MRP), analyzing the marginal effects of time-varying drivers like social influence and infrastructure improvements, and identifying key drivers using machine learning.
 
 ---
 
@@ -10,12 +10,12 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 **Typical workflow:**
 
-1. `Function.R`: Run first to load libraries, data, and helper functions.  
-2. `function_test.R`: Run to explore and understand the raw data.  
-3. `MRP.R`: Run to validate the survey data against MRP estimates.  
-4. `ML.R`: Run to identify the relative importance of the variables using machine learning algorithms.  
-5. `subsidy.R`, `peer_effect.R`, `spatial.R`: Core analysis scripts modeling individual factors (subsidies, social influence, geography).  
-6. `scenario.R`: Run to build predictive scenarios.
+
+1. `Function.R`: Run first. Initializes the environment and processes raw data. 
+2. `TEST.R`: Data validation and exploratory analysis.
+3. `ML.R`: Summarizing data, feature importance and machine learning model execution. 
+4. `State_mean.R:`: State-wide baseline analysis.
+5. `Sub_effect.R`, `Spatial_effect.R`: Detailed analysis of specific drivers and geographic distributions, including MRP results.  
 
 
 ---
@@ -24,7 +24,7 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ### 1. `Function.R`
 
-**Purpose:** Central setup and utility script.
+**Purpose:** Central setup, library management, and data processing.
 
 - Foundational script for the entire project; must be sourced at the beginning of any session.
 - Loads all required R packages (e.g., `dplyr`, `ggplot2`, `sf`).
@@ -33,68 +33,58 @@ The analysis is structured to be run in a logical sequence. Scripts build upon e
 
 ---
 
-### 2. `function_test.R`
+### 2. `TEST.R`
 
-**Purpose:** Exploratory Data Analysis (EDA)
+**Purpose:** Exploratory Data Analysis (EDA) and Quality Control.
 
 - A sandbox for initial data investigation.
 - Contains data summaries, statistical tests, and visualizations.
 - Checks data distributions, missing values, and outliers.
+- Performs initial correlation analysis (Pearson’s $r$) to identify preliminary relationships between technology classes (PS, EV, HP, IC).
 - Helps form initial hypotheses for formal testing.
 
----
-
-### 3. `MRP.R`
-
-**Purpose:** Data validation with the estimates from Multilevel Regression & Poststratification (MRP)
-
-- Validates the representativeness of the survey data.
-- Compares MRP-generated means with raw survey sample means.
 
 ---
 
-### 4. `ML.R`
+### 3. `ML.R`
 
 **Purpose:** Machine learning analysis for feature importance
 
+- Summarizes the dataset for predictive modeling.
 - Performs machine learning to identify key adoption drivers.
 - Builds predictive models (e.g., GLM, Lasso, and Gradient Boosting).
 
 ---
 
 
-### 5. `subsidy.R`
+### 4. `State_mean.R`
 
-**Purpose:** Subsidy impact analysis
+**Purpose:** State-wide Average Analysis
 
-- Quantifies the effect of subsidies on technology adoption.
-- Measure impacts of different subsidy levels by income level or Disadvantaged Community (DAC) assignment.
-
----
-
-### 6. `peer_effect.R`
-
-**Purpose:** Social influence analysis
-
-- Models the dynamic nature of peer effects on adoption.
-- Tracks how social influence differ by urbanization, DAC, and technology.
+- Calculates state-level adoption baselines in waterfall formats.
+- Measure impacts of different levels by Disadvantaged Community (DAC) assignment.
 
 ---
 
-### 7. `spatial.R`
+### 5. `Sub_effect.R`
+
+**Purpose:** Specific Variable & Marginal Effect Analysis.
+
+- Analyzes the marginal effects of specific time-varying drivers.
+- Focuses on the impact of social contagion (peer effects) and infrastructure improvements (e.g., EV range anxiety) on adoption propensity.
+- Handles the decomposition of aggregated effects (referencing SI Figure S13).
+
+
+---
+
+### 6. `Spatial_effect.R`
 
 **Purpose:** Spatial analysis of patterns
 
-- Maps geographic distribution of adoption rates and model results.
-- Uses spatial statistics (e.g., Moran’s I) to test for autocorrelation.
-- Identifies adoption "hot spots" and links findings to specific locations.
+- Generates spatial projections of adoption probabilities.
+- Produces multi-panel maps comparing DAC vs. Non-DAC disparities (e.g., Gini Coefficients and Standard Deviation).
+- Visualizes adoption "hubs" and spatial autocorrelation patterns across the study domain.
+
 
 
 ---
-
-### 8. `scenario.R`
-
-**Purpose:** Predictive scenario building
-
-- Combines impacts of subsidies, peer effects, and other drivers.
-- Simulates "what-if" scenarios for policy planning (e.g., future adoption under increased subsidies).

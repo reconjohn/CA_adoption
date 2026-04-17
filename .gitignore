@@ -12,3 +12,4 @@
 # Keep .gitignore itself
 !.gitignore
 !README.md
+.Rproj.user

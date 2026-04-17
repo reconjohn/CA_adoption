@@ -22,7 +22,7 @@ f5m <- df_long %>%
   ggplot(aes(x = GEOID, y = tech, fill = value)) +
   geom_tile() +
   scale_fill_scico(palette = "roma") +
-  labs(x = NULL, y = "", fill = "Standardized\nAdoption", title = "Heat map") +
+  labs(x = NULL, y = "", fill = "Standardized\nAdoption", title = "Technology adoption across census tracts") +
   theme_minimal() +
   theme(
     axis.text.x = element_blank(),      # remove GEOID labels
@@ -43,14 +43,15 @@ f5n <- function() {
     tl.col = "black",
     tl.srt = 0,
     diag = FALSE,
-    col = colorRampPalette(c("#7F0000", "red", "#FF7F00", "yellow", "white", 
+    # col = scico::scico(200, palette = "roma")
+    col = colorRampPalette(c("#7F0000", "red", "#FF7F00", "yellow", "white",
                              "cyan", "#007FFF", "blue", "#00007F"))(200)
   )
 }
 
 
 # Wrap the plots and assign titles through plot_annotation or subtitle tags
-p_combined <- (f5m + labs(title = "Heat map")) + 
+p_combined <- (f5m + labs(title = "Technology adoption across census tracts")) + 
   (wrap_elements(panel = ~f5n()) + labs(title = "Correlation among technologies"))
 
 f5y <- p_combined + 
@@ -191,7 +192,7 @@ for(i in 1:4){
     
     geom_sf(data = CA_c, fill = NA, color = "gray90", linewidth = 0.1) +
     annotate("text", x = -120, y = 41, 
-             label = paste0("SI: ",moran_by_class$SI[[i]] %>% 
+             label = paste0("SC: ",moran_by_class$SI[[i]] %>% 
                               round(2)),
              hjust = -0.2, vjust = 1.2, size = 5) +
   
@@ -208,7 +209,7 @@ for(i in 1:4){
       panel.grid.minor = element_blank(),
       panel.grid.major = element_blank(),
       legend.text = element_text(size = 10),
-      legend.position = "right",
+      legend.position = "bottom",
       
       strip.placement = "outside", # Keep labels on the outside
       # strip.background =element_rect(fill="gray22",color="gray22"),
@@ -350,7 +351,7 @@ for(i in 1:4){
       panel.grid.minor = element_blank(),
       panel.grid.major = element_blank(),
       legend.text = element_text(size = 10),
-      legend.position = "right",
+      legend.position = "bottom",
       
       strip.placement = "outside", # Keep labels on the outside
       # strip.background =element_rect(fill="gray22",color="gray22"),
@@ -369,14 +370,14 @@ ggsave("./fig/f5.png",
                  f5c,
                  f5y,
                  nrow = 3, 
-                 heights = c(1,2,1.5),
+                 heights = c(1.2,2,1.2),
                  labels = c("A", "B", "C"),  # Adds labels to plots
                  label.x = 0,        # Adjust horizontal position of labels
                  label.y = 1,        # Adjust vertical position of labels
                  vjust = 1,
                  hjust = -1,
                  font.label = list(size = 14, face = "bold")),
-       width = 12, height = 12)
+       width = 12, height = 14)
 
 
 

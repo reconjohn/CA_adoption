@@ -43,9 +43,9 @@ f5n <- function() {
     tl.col = "black",
     tl.srt = 0,
     diag = FALSE,
-    # col = scico::scico(200, palette = "roma")
-    col = colorRampPalette(c("#7F0000", "red", "#FF7F00", "yellow", "white",
-                             "cyan", "#007FFF", "blue", "#00007F"))(200)
+    col = scico::scico(200, palette = "roma")
+    # col = colorRampPalette(c("#7F0000", "red", "#FF7F00", "yellow", "white",
+    #                          "cyan", "#007FFF", "blue", "#00007F"))(200)
   )
 }
 
@@ -143,6 +143,12 @@ mmp <- CA_t %>%
                   "PV" = "Photovoltaics"),
     tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves"))) %>%
   na.omit()
+
+
+# mmp %>% 
+#   st_drop_geometry() %>% 
+#   pivot_wider(names_from = tech, values_from = value) %>% 
+#   write_csv("./data/high_spatial.csv")
 
 
 ### moran's I 

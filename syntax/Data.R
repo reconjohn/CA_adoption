@@ -281,8 +281,8 @@ effect <- list()
 for(i in 2:5){
   future <- "high"
   
-  f_d <- final_ef_peer(data %>%
-                         dplyr::select(VAR[[i-1]], climatezone, dac, matches("PV|PS|EV|HP|IC"),wt_ca),
+  f_d <- final_ef_peer(data = data %>%
+                         dplyr::select(VAR[[i-1]], climatezone, dac, matches("PV|PS|EV|HP|IC", ignore.case = FALSE),wt_ca),
                        i, future) %>%
     mutate(class = paste0(ipt[i],"_",future))
   

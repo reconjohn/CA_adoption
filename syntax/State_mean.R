@@ -1471,13 +1471,13 @@ pattern_vals <- c(
 #   )
 
 ### add new built effects
-d_w <- CA_t %>% 
-  st_drop_geometry() %>% 
-  left_join(dac, by = "GEOID") %>% 
-  group_by(sample) %>% 
-  summarise(pop = sum(estimate)) %>%
-  mutate(prop = pop / sum(pop)) %>% 
-  pull(prop)
+# d_w <- CA_t %>% 
+#   st_drop_geometry() %>% 
+#   left_join(dac, by = "GEOID") %>% 
+#   group_by(sample) %>% 
+#   summarise(pop = sum(estimate)) %>%
+#   mutate(prop = pop / sum(pop)) %>% 
+#   pull(prop)
 
 d_w <- c(1,1)
 
@@ -1807,7 +1807,7 @@ for(k in 1){
   
   ### without sum contrasts for scenario variables
   b_ev <- mreg_dac_r(data = data %>% 
-                       dplyr::select(VAR[[k]], matches("home_own", ignore.case = FALSE),
+                       dplyr::select(VAR[[k]],
                                      climatezone, dac, matches("PV|EV|PS|HP|IC", ignore.case = FALSE),wt_ca),
                      remove = NULL,
                      i = k+1,
@@ -1911,7 +1911,7 @@ df_long <- d1 %>%
 
 
 dff <- df_long %>% 
-  filter(value >0) %>% 
+  # filter(value >0) %>% 
   mutate(across(where(is.numeric), ~ .x * 100)) %>% 
   group_by(tech,dac) %>%
   mutate(id = row_number(),
@@ -2022,7 +2022,7 @@ df_long_p <- d1 %>%
 
 
 dff <- df_long_p %>% 
-  filter(value >0) %>% 
+  # filter(value >0) %>% 
   mutate(across(where(is.numeric), ~ .x * 100)) %>% 
   group_by(tech,dac) %>%
   mutate(id = row_number(),

@@ -1822,6 +1822,10 @@ mreg <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
 
 mreg_scene <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   
+  # data <- data %>%
+  #   dplyr::select(VAR[[k]], matches("home_own", ignore.case = FALSE),
+  #                 climatezone, dac, matches("PV|EV|PS|HP|IC", ignore.case = FALSE),wt_ca)
+  
   da_r <- data %>% 
     dplyr::select(# remove multicollinear variables
       
@@ -1946,7 +1950,7 @@ mreg_scene <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
     fvar <- as.formula(paste(ipt[i], " ~", paste(model1vars, collapse = " + "), 
                              "+ (1|climatezone) + dac"))
   
-  fit <- lmer(fvar, data = da_r)
+  fit <- lmer(fvar, weights = wt_ca, data = da_r)
   # summary(fit)
   sum_fit <- summary(fit)$coef %>% 
     as.data.frame() %>% 
@@ -2431,7 +2435,7 @@ mreg_dac_r <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
   }
 
   
-  fit <- lm(fvar, data = da_r)
+  fit <- lm(fvar, weights = wt_ca, data = da_r)
   # summary(fit)
   
   if(i == 2){
@@ -4004,6 +4008,9 @@ freg_lpm <- function(data, remove = NULL, i, scenario = NULL, future = NULL){
 
 ### including peer effects
 final_ef_peer <- function(data, i, future){
+  
+  # data <- data %>%
+  #   dplyr::select(VAR[[i-1]], climatezone, dac, matches("PV|PS|EV|HP|IC", ignore.case = FALSE),wt_ca)
   
   scenario <- if (i %in% c(1, 5)) {
     c("peer_PV")

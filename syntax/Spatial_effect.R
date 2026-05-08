@@ -7,6 +7,15 @@ df <- final %>%
   pivot_wider(names_from = tech, values_from = value) %>% 
   mutate(across(where(is.numeric), ~ scale(.) %>% as.numeric())) 
 
+### average check
+# final %>% 
+#   pivot_wider(names_from = class, values_from = value) %>% 
+#   left_join(CA_t %>% st_drop_geometry(), by = "GEOID") %>%
+#   summarise(across(where(is.numeric), ~ weighted.mean(.x, w = estimate, na.rm = TRUE))) %>% 
+#   t() %>% 
+#   as.data.frame() %>% 
+#   tibble::rownames_to_column(var = "name") 
+
 
 df_long <- df %>%
   pivot_longer(cols = c(PS, IC, HP, EV),
@@ -376,14 +385,14 @@ ggsave("./fig/f5.png",
                  f5c,
                  f5y,
                  nrow = 3, 
-                 heights = c(1.2,2,1.2),
+                 heights = c(1.3,2.1,1.2),
                  labels = c("A", "B", "C"),  # Adds labels to plots
                  label.x = 0,        # Adjust horizontal position of labels
                  label.y = 1,        # Adjust vertical position of labels
                  vjust = 1,
                  hjust = -1,
                  font.label = list(size = 14, face = "bold")),
-       width = 12, height = 14)
+       width = 12, height = 16)
 
 
 
@@ -425,6 +434,7 @@ select_var <- list(c("peer_effect"),
                    c("peer_effect"),
                    c("peer_effect"),
                    c("peer_effect"))
+tech <- c("PV","EV","HP","IC","PS")
 plot <- list()
 for(i in 1:4){
   plot[[i]] <- CA_t %>% 
@@ -463,3 +473,4 @@ for(i in 1:4){
 ggsave("./fig/s13.png",
        ggarrange(plot[[4]], plot[[1]],plot[[2]],plot[[3]]),
        width = 12, height = 6)
+

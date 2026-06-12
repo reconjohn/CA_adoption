@@ -116,26 +116,26 @@ results <- result %>%
     "previous_cooling_typeCentral" = "Central AC (previous)", "previous_cooling_typeNone" = "No Cooling (previous)",
     
     # --- Vehicles ---
-    "vehicle_num" = "Number of Vehicles", "vehicle_comb_miles" = "Mileage",
+    "vehicle_num" = "Number of Vehicles", "vehicle_comb_miles" = "Annual Mileage",
     "charging_work1" = "Workplace Charger", "charging_5mile_f1" = "Fast Charger (<5mi)",
-    "vehicle_next_used1" = "Planning Used Car", "rangeanxiety" = "EV Range",
+    "vehicle_next_used1" = "Prefer Used Car", "rangeanxiety" = "EV Range",
     
     # --- Behavioral / Preferences ---
     "solstor_wtp_dv" = "WTP: Solar + Storage", "ev_wtp_pc" = "WTP: Electric Vehicle",
     "heatpump_wtp_pc" = "WTP: Heat Pump", "induction_dv" = "WTP: Induction Stove",
-    "upfrontpayback1" = "Prefer Upfront Subsidy", "elec_savemoney" = "Perceived Cost Savings (Elec)",
+    "upfrontpayback1" = "Prefer Earlier Subsidy", "elec_savemoney" = "Believing Elec Saves",
     "elec_health" = "Perceived Health Benefits (Elec)", "elec_safety" = "Perceived Safety (Elec)",
     "elec_avail" = "Contractor Availability Confidence", "heating_cost_burden" = "Heating Financial Burden",
     "electrificationHalf_elec" = "Prefer Partial Electrification", "electrificationFull_elec" = "Prefer Full Electrification",
     "electrificationFull_fossil" = "Prefer Fossil Fuels", "lowincome_sup" = "Receives Bill Assistance",
     
     # --- Climate Resilience ---
-    "ccinsure_lost" = "Lost Home Insurance", "ccmove_where1" = "Leave CA (Climate Move)",
+    "ccinsure_lost" = "Lost Home Insurance", "ccmove_where1" = "Willing to Leave CA",
     "homevac" = "Evacuation History", "cclive" = "Climate Change Concern",
-    "ccpastmove" = "Past Climate Move", "ccfuturemove" = "Future Climate Move",
+    "ccpastmove" = "Past Relocation", "ccfuturemove" = "Willing to Relocate",
     "outage_impact" = "Outage Frequency Impact", "outage_generatorown1" = "Owns Backup Generator",
-    "outage_generatorplan" = "Plans for Backup Generator", "therm_winter1" = "Thermostat (Winter)",
-    "therm_summer" = "Thermostat (Summer)"
+    "outage_generatorplan" = "Backup Generator to Buy", "therm_winter1" = "Thermostat Setting (Winter)",
+    "therm_summer" = "Thermostat Setting (Summer)"
   )) %>% 
   # 2. Peer/Neighbor logic
   mutate(rowname = case_when(
@@ -312,26 +312,26 @@ results <- results <- result %>%
     "previous_cooling_typeCentral" = "Central AC (previous)", "previous_cooling_typeNone" = "No Cooling (previous)",
     
     # --- Vehicles ---
-    "vehicle_num" = "Number of Vehicles", "vehicle_comb_miles" = "Mileage",
+    "vehicle_num" = "Number of Vehicles", "vehicle_comb_miles" = "Annual Mileage",
     "charging_work1" = "Workplace Charger", "charging_5mile_f1" = "Fast Charger (<5mi)",
-    "vehicle_next_used1" = "Planning Used Car", "rangeanxiety" = "EV Range",
+    "vehicle_next_used1" = "Prefer Used Car", "rangeanxiety" = "EV Range",
     
     # --- Behavioral / Preferences ---
     "solstor_wtp_dv" = "WTP: Solar + Storage", "ev_wtp_pc" = "WTP: Electric Vehicle",
     "heatpump_wtp_pc" = "WTP: Heat Pump", "induction_dv" = "WTP: Induction Stove",
-    "upfrontpayback1" = "Prefer Upfront Subsidy", "elec_savemoney" = "Perceived Cost Savings (Elec)",
+    "upfrontpayback1" = "Prefer Earlier Subsidy", "elec_savemoney" = "Believing Elec Saves",
     "elec_health" = "Perceived Health Benefits (Elec)", "elec_safety" = "Perceived Safety (Elec)",
     "elec_avail" = "Contractor Availability Confidence", "heating_cost_burden" = "Heating Financial Burden",
     "electrificationHalf_elec" = "Prefer Partial Electrification", "electrificationFull_elec" = "Prefer Full Electrification",
     "electrificationFull_fossil" = "Prefer Fossil Fuels", "lowincome_sup" = "Receives Bill Assistance",
     
     # --- Climate Resilience ---
-    "ccinsure_lost" = "Lost Home Insurance", "ccmove_where1" = "Leave CA (Climate Move)",
+    "ccinsure_lost" = "Lost Home Insurance", "ccmove_where1" = "Willing to Leave CA",
     "homevac" = "Evacuation History", "cclive" = "Climate Change Concern",
-    "ccpastmove" = "Past Climate Move", "ccfuturemove" = "Future Climate Move",
+    "ccpastmove" = "Past Relocation", "ccfuturemove" = "Willing to Relocate",
     "outage_impact" = "Outage Frequency Impact", "outage_generatorown1" = "Owns Backup Generator",
-    "outage_generatorplan" = "Plans for Backup Generator", "therm_winter1" = "Thermostat (Winter)",
-    "therm_summer" = "Thermostat (Summer)"
+    "outage_generatorplan" = "Backup Generator to Buy", "therm_winter1" = "Thermostat Setting (Winter)",
+    "therm_summer" = "Thermostat Setting (Summer)"
   )) %>% 
   # 2. Peer/Neighbor logic
   mutate(rowname = case_when(

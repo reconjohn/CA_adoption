@@ -7,7 +7,13 @@ library(glmnet)       # For Elastic Net (Ridge/Lasso)
 library(gtsummary)
 
 ### data explore
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
+data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+  left_join(read_csv("./data/raw/cca_survey_with_weights.csv") %>% 
+              dplyr::select(ResponseId, wt_ca_bounded), by = "ResponseId") %>% 
+  dplyr::select(-wt_ca) %>% 
+  dplyr::rename(wt_ca = wt_ca_bounded) %>% 
+  filter(!is.na(wt_ca)) %>% 
+  data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
   dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final")) %>% 
   dplyr::select(-c("PS_int","EV_int","HP_int","IC_int"))
 
@@ -81,7 +87,7 @@ var_description_data <- tribble(
   "education", "Educational attainment level", "Less than HS to Postgraduate", "Demographics",
   "born_us", "Binary indicator for U.S.-born status", "1 = Yes, 0 = No", "Demographics",
   "employment", "Current employment status", "Full-time, Part-time, Retired, etc.", "Demographics",
-  "ideology", "Self-identified political ideology", "Very Conservative to Very Liberal", "Demographics",
+  # "ideology", "Self-identified political ideology", "Very Conservative to Very Liberal", "Demographics",
   "pid", "Political party affiliation", "Democrat, Republican, Independent, etc.", "Demographics",
   
   # --- HOUSING & LOCATION ---
@@ -95,56 +101,56 @@ var_description_data <- tribble(
   
   # --- SOLAR & STORAGE (PV/PS) ---
   "PV", "Current household solar PV installation", "1 = Yes, 0 = No", "Solar & Storage",
-  "solar_install", "Timing of solar installation relative to move-in", "Already installed, Installed after", "Solar & Storage",
-  "solar_date_owner", "Year of solar installation", "Before 2010 to 2025", "Solar & Storage",
-  "solar_pv_plans", "Plans to adopt solar PV within 5 years", "Yes, Maybe, No", "Solar & Storage",
-  "storage_own", "Ownership of battery storage system", "1 = Yes, 0 = No", "Solar & Storage",
-  "storage_plans", "Plans to adopt battery storage within 5 years", "Yes, Maybe, No", "Solar & Storage",
+  # "solar_install", "Timing of solar installation relative to move-in", "Already installed, Installed after", "Solar & Storage",
+  # "solar_date_owner", "Year of solar installation", "Before 2010 to 2025", "Solar & Storage",
+  # "solar_pv_plans", "Plans to adopt solar PV within 5 years", "Yes, Maybe, No", "Solar & Storage",
+  # "storage_own", "Ownership of battery storage system", "1 = Yes, 0 = No", "Solar & Storage",
+  # "storage_plans", "Plans to adopt battery storage within 5 years", "Yes, Maybe, No", "Solar & Storage",
   "solstor_wtp_dv", "Willingness to adopt solar/battery based on subsidy", "$0 to $35,000", "Solar & Storage",
-  "solstor_wtp_payback", "Minimum acceptable payback period for solar/battery", "0 to 25 years", "Solar & Storage",
+  # "solstor_wtp_payback", "Minimum acceptable payback period for solar/battery", "0 to 25 years", "Solar & Storage",
   "peer_PV", "Peer influence on PV adoption", "Neighbor, Acquaintance, None", "Solar & Storage",
-  "elec_home_cost_PV", "Perceived cost impact of PV adoption", "More expensive to Much cheaper", "Solar & Storage",
+  # "elec_home_cost_PV", "Perceived cost impact of PV adoption", "More expensive to Much cheaper", "Solar & Storage",
   
   # --- ELECTRIC VEHICLES (EV) ---
   "EV", "Current ownership of a full electric vehicle", "1 = Yes, 0 = No", "Electric Vehicles",
   "vehicle_1_miles", "Annual mileage for primary vehicle", "<2,500 to >20,000 miles", "Electric Vehicles",
-  "charging_access", "Access to EV charging at home", "Charger, Possible, No access", "Electric Vehicles",
+  # "charging_access", "Access to EV charging at home", "Charger, Possible, No access", "Electric Vehicles",
   "charging_work", "Charger availability at workplace", "1 = Yes, 0 = No", "Electric Vehicles",
-  "charging_5mile_r", "Regular public charger within 5 miles", "1 = Yes, 0 = No", "Electric Vehicles",
+  # "charging_5mile_r", "Regular public charger within 5 miles", "1 = Yes, 0 = No", "Electric Vehicles",
   "charging_5mile_f", "Fast public charger within 5 miles", "1 = Yes, 0 = No", "Electric Vehicles",
-  "fastcharge_likely", "Likelihood of EV adoption if fast charging available", "Never to Much more likely", "Electric Vehicles",
-  "vehicle_wherecharge_1", "Frequency of home charging", "Never to Daily", "Electric Vehicles",
-  "vehicle_wherecharge_2", "Frequency of workplace charging", "Never to Daily", "Electric Vehicles",
-  "vehicle_wherecharge_3", "Frequency of public charging", "Never to Daily", "Electric Vehicles",
-  "vehicle_whencharge", "Typical time of charging", "9am-5pm, 5pm-8pm, etc.", "Electric Vehicles",
+  # "fastcharge_likely", "Likelihood of EV adoption if fast charging available", "Never to Much more likely", "Electric Vehicles",
+  # "vehicle_wherecharge_1", "Frequency of home charging", "Never to Daily", "Electric Vehicles",
+  # "vehicle_wherecharge_2", "Frequency of workplace charging", "Never to Daily", "Electric Vehicles",
+  # "vehicle_wherecharge_3", "Frequency of public charging", "Never to Daily", "Electric Vehicles",
+  # "vehicle_whencharge", "Typical time of charging", "9am-5pm, 5pm-8pm, etc.", "Electric Vehicles",
   "rangeanxiety", "Minimum range needed for EV confidence", "<200 to >400 miles", "Electric Vehicles",
   "vehicle_next_used", "Preference for next vehicle to be new", "1 = Yes, 0 = No", "Electric Vehicles",
-  "vehicle_next_when", "Planned timing for next vehicle acquisition", "Within 1 year to No plan", "Electric Vehicles",
-  "vehicle_next_fuel", "Plan to purchase EV as next vehicle", "1 = Yes, 0 = No", "Electric Vehicles",
+  # "vehicle_next_when", "Planned timing for next vehicle acquisition", "Within 1 year to No plan", "Electric Vehicles",
+  # "vehicle_next_fuel", "Plan to purchase EV as next vehicle", "1 = Yes, 0 = No", "Electric Vehicles",
   "ev_wtp_pc", "Willingness to adopt EV based on subsidy", "$0 to $20,000", "Electric Vehicles",
   "peer_EV", "Peer influence on EV adoption", "Neighbor, Acquaintance, None", "Electric Vehicles",
-  "elec_home_cost_1", "Perceived cost impact of EV adoption", "More expensive to Much cheaper", "Electric Vehicles",
+  # "elec_home_cost_1", "Perceived cost impact of EV adoption", "More expensive to Much cheaper", "Electric Vehicles",
   
   # --- HEAT PUMP & COOKING (HP/IC) ---
   "HP", "Current heat pump usage", "1 = Yes, 0 = No", "Heating & Cooling",
   "primary_heating_type", "Primary heating system type", "Central, Electric, HP, Other", "Heating & Cooling",
   "primary_cooling_type", "Primary cooling system type", "Central, Room, Other", "Heating & Cooling",
-  "heatpump_direct", "Interest in heat pump adoption", "Not interested to Very interested", "Heating & Cooling",
-  "heating_plan", "Plan to replace heating system", "Never to Next year", "Heating & Cooling",
-  "cooling_plan", "Plan to replace cooling system", "Never to Next year", "Heating & Cooling",
-  "therm_summer", "Thermostat use in summer", "1 = Yes, 0 = No", "Heating & Cooling",
-  "therm_winter", "Thermostat use in winter", "1 = Yes, 0 = No", "Heating & Cooling",
+  # "heatpump_direct", "Interest in heat pump adoption", "Not interested to Very interested", "Heating & Cooling",
+  # "heating_plan", "Plan to replace heating system", "Never to Next year", "Heating & Cooling",
+  # "cooling_plan", "Plan to replace cooling system", "Never to Next year", "Heating & Cooling",
+  "therm_summer", "Thermostat temperature setting in summer", "Categories 1 through 7 correspond to temperatures ranging from 60°F to 80°F", "Heating & Cooling",
+  "therm_winter", "Thermostat temperature setting in winter", "Categories 1 through 7 correspond to temperatures ranging from 60°F to 80°F", "Heating & Cooling",
   "peer_HP", "Peer influence on HP adoption", "Neighbor, Acquaintance, None", "Heating & Cooling",
-  "elec_home_cost_HP", "Perceived cost impact of HP adoption", "More expensive to Much cheaper", "Heating & Cooling",
+  # "elec_home_cost_HP", "Perceived cost impact of HP adoption", "More expensive to Much cheaper", "Heating & Cooling",
   "heatpump_wtp_pc", "Willingness to adopt HP based on subsidy", "$0 to $20,000", "Heating & Cooling",
-  "heatpump_wtp_payback", "Minimum acceptable payback period for HP", "0 to 18 years", "Heating & Cooling",
-  "heatpump_motiv", "Primary motivation for adopting heat pump", "Categorical", "Heating & Cooling",
+  # "heatpump_wtp_payback", "Minimum acceptable payback period for HP", "0 to 18 years", "Heating & Cooling",
+  # "heatpump_motiv", "Primary motivation for adopting heat pump", "Categorical", "Heating & Cooling",
   "IC", "Current induction cooktop use", "1 = Yes, 0 = No", "Kitchen & Cooking",
   "kitchen_range_type", "Kitchen range fuel type", "Electric, Induction, Gas, Propane", "Kitchen & Cooking",
-  "induction_direct", "Interest in induction cooktop adoption", "Not interested to Very interested", "Kitchen & Cooking",
+  # "induction_direct", "Interest in induction cooktop adoption", "Not interested to Very interested", "Kitchen & Cooking",
   "induction_dv", "Willingness to adopt IC based on subsidy", "$0 to $1,200", "Kitchen & Cooking",
   "peer_IC", "Peer influence on IC adoption", "Neighbor, Acquaintance, None", "Kitchen & Cooking",
-  "elec_home_cost_IC", "Perceived cost impact of IC adoption", "More expensive to Much cheaper", "Kitchen & Cooking",
+  # "elec_home_cost_IC", "Perceived cost impact of IC adoption", "More expensive to Much cheaper", "Kitchen & Cooking",
   
   # --- ATTITUDES & ELECTRIFICATION ---
   "heating_cost_burden", "Perceived burden of heating costs", "No burden to Large burden", "Attitudes",
@@ -158,7 +164,7 @@ var_description_data <- tribble(
   "outage_impact", "Household impact of power outages", "None to Extreme", "Climate & Resilience",
   "outage_generatorown", "Ownership of backup generator", "1 = Yes, 0 = No", "Climate & Resilience",
   "outage_generatorplan", "Plan to acquire generator within 3 years", "No to Yes", "Climate & Resilience",
-  "yale_worried", "Level of concern about climate change", "Not worried to Very worried", "Climate & Resilience",
+  # "yale_worried", "Level of concern about climate change", "Not worried to Very worried", "Climate & Resilience",
   "cclive", "Climate change impact on residential location choice", "No impact to Very much", "Climate & Resilience",
   "ccpastmove", "Frequency of past moves due to climate change", "Never to >Once", "Climate & Resilience",
   "ccfuturemove", "Likelihood of moving in next 10 years due to climate", "Unlikely to Likely", "Climate & Resilience",
@@ -168,12 +174,64 @@ var_description_data <- tribble(
 
 # 2. Format the table for Word
 final_desc_table <- var_description_data %>%
+  mutate(Name = Variable,
+    Name = recode(
+    Name,
+    # --- Demographics ---
+    "age" = "Age", "gender" = "Male, Female, Other", "income" = "Income",
+    "education" = "Graduate Degree, High School, Less than HS, Some College",
+    "race" = "Asian, Black, Hispanic, Native/Pacific Islander, Multiracial, Non-Hispanic Other", 
+    "born_us" = "US Born", "employment" = "Unemployed", "pid" = "Political Ideology",
+    "household_numpeople" = "Household Size",
+    
+    # --- Home & Tech Status ---
+    "home_own" = "Homeowner", "home_area" = "Home Area", "home_type" = "Single Family, Multi-family, Other Home Types", 
+    "home_age" = "Home Built before 1980, Home Built 1980-2020, Home Built after 2020", 
+    "primary_heating_type" = "Heating: Gas,Heating: Electric,Heating: None,Heating: Unknown", 
+    "primary_cooling_type" = "Central AC,No Cooling,Cooling: Unknown,Cooling: Other",
+    "hotwater_energy" = "Water Heating: Gas,Water Heating: Unknown,Water Heating: Unknown,Water Heating: Other",
+    "kitchen_range_type" = "Electric Cooktop,Gas Cooktop,Cooktop: None,Cooktop: Unknown",
+    
+    # --- Previous Tech (for HP/EV) ---
+    "previous_heating_type" = "Heating: Gas (previous),Heating: Electric (previous),Heating: None (previous),Heating: Unknown (previous),Heating: Other (previous)",
+    "previous_cooling_type" = "Central AC (previous),No Cooling (previous)",
+    
+    # --- Vehicles ---
+    "vehicle_num" = "Number of Vehicles", "vehicle_1_miles" = "Annual Mileage",
+    "charging_work" = "Workplace Charger", "charging_5mile_f" = "Fast Charger (<5mi)",
+    "vehicle_next_used" = "Prefer Used Car", "rangeanxiety" = "EV Range",
+    
+    # --- Behavioral / Preferences ---
+    "solstor_wtp_dv" = "WTP: Solar + Storage", "ev_wtp_pc" = "WTP: Electric Vehicle",
+    "heatpump_wtp_pc" = "WTP: Heat Pump", "induction_dv" = "WTP: Induction Stove",
+    "upfrontpayback" = "Prefer Earlier Subsidy", "elec_savemoney" = "Believing Elec Saves",
+    "elec_health" = "Perceived Health Benefits (Elec)", "elec_safety" = "Perceived Safety (Elec)",
+    "elec_avail" = "Contractor Availability Confidence", "heating_cost_burden" = "Heating Financial Burden",
+    "electrification" = "Prefer Partial Electrification,Prefer Full Electrification,Prefer Fossil Fuels", 
+    "lowincome_sup" = "Receives Bill Assistance",
+    
+    # --- Climate Resilience ---
+    "ccinsure_lost" = "Lost Home Insurance", "ccmove_where" = "Willing to Leave CA",
+    "homevac" = "Evacuation History", "cclive" = "Climate Change Concern",
+    "ccpastmove" = "Past Relocation", "ccfuturemove" = "Willing to Relocate",
+    "outage_impact" = "Outage Frequency Impact", "outage_generatorown" = "Owns Backup Generator",
+    "outage_generatorplan" = "Backup Generator to Buy", "therm_winter" = "Thermostat Setting (Winter)",
+    "therm_summer" = "Thermostat Setting (Summer)",
+    
+    "peer_PV" = "Neighbor/Peer",
+    "peer_EV" = "Neighbor/Peer",
+    "peer_HP" = "Neighbor/Peer",
+    "peer_IC" = "Neighbor/Peer"
+  )) %>% 
+
   arrange(factor(Section, levels = c("Demographics", "Housing", "Solar & Storage", "Electric Vehicles", 
                                      "Heating & Cooling", "Kitchen & Cooking", "Attitudes", "Climate & Resilience"))) %>%
   as_grouped_data(groups = "Section") %>%
+  dplyr::select(Section, Variable, Name, Description, Values_Units) %>% 
   flextable() %>%
   set_header_labels(
     Variable = "Variable Name",
+    Name = "Model Name",
     Description = "Description",
     Values_Units = "Values / Coding"
   ) %>%
@@ -181,16 +239,23 @@ final_desc_table <- var_description_data %>%
   bold(i = ~ !is.na(Section), part = "body") %>% # Bold Section headers
   bold(j = 1, part = "body") %>%                 # Bold Variable names
   fontsize(size = 9, part = "all") %>%
-  width(j = 1, width = 1.5) %>%
-  width(j = 2, width = 3.2) %>%
-  width(j = 3, width = 1.8) %>%
+  width(j = 1, width = 0.8) %>%
+  width(j = 2, width = 1) %>%
+  width(j = 3, width = 1) %>%
+  width(j = 4, width = 2.3) %>%
+  width(j = 5, width = 1.2) %>%
   align(i = ~ !is.na(Section), align = "left", part = "body")
 
 save_as_docx(final_desc_table, path = "./docs/Appendix_Variable_Descriptions.docx")
 
 
 ### missing 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>%
+data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+  left_join(read_csv("./data/raw/cca_survey_with_weights.csv") %>% 
+              dplyr::select(ResponseId, wt_ca_bounded), by = "ResponseId") %>% 
+  dplyr::select(-wt_ca) %>% 
+  dplyr::rename(wt_ca = wt_ca_bounded) %>%
+  filter(!is.na(wt_ca)) %>% 
   data_process(ev = c("Fully electric")) %>% 
   data_clean() 
 
@@ -1370,7 +1435,13 @@ for(i in 2:5){
 }
 
 ### regression results 
-data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
+data <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+  left_join(read_csv("./data/raw/cca_survey_with_weights.csv") %>% 
+              dplyr::select(ResponseId, wt_ca_bounded), by = "ResponseId") %>% 
+  dplyr::select(-wt_ca) %>% 
+  dplyr::rename(wt_ca = wt_ca_bounded) %>% 
+  filter(!is.na(wt_ca)) %>% 
+  data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
   dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
                 -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
                 -c("PS_int","EV_int","HP_int","IC_int"))

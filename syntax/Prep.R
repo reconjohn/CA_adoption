@@ -220,9 +220,24 @@ mrp <- mrp %>%
 #                 -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
 #                 -c("PS_int","EV_int","HP_int","IC_int"))
 
+dat <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+  left_join(read_csv("./data/raw/cca_survey_with_weights.csv") %>% 
+              dplyr::select(ResponseId, wt_ca_bounded), by = "ResponseId") %>% 
+  dplyr::select(-wt_ca) %>% 
+  dplyr::rename(wt_ca = wt_ca_bounded) %>% 
+  data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
+  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final")) %>% 
+  filter(!is.na(wt_ca))
 
-dat <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
-  dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"))
+# dat <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+#   data_process(ev = c("Fully electric")) %>% data_clean(1) %>% 
+#   dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"))
+
+# list(
+#   only_in_dat = setdiff(names(dat), names(dattt)),
+#   only_in_dattt = setdiff(names(dattt), names(dat)),
+#   in_both = intersect(names(dat), names(dattt))
+# )
 
 
 ### modify peer effect variables to 4 categories
@@ -896,6 +911,10 @@ data_cl <- function(data, further = NULL){
 
 ### add urban variable
 dat1 <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>% 
+  left_join(read_csv("./data/raw/cca_survey_with_weights.csv") %>% 
+              dplyr::select(ResponseId, wt_ca_bounded), by = "ResponseId") %>% 
+  dplyr::select(-wt_ca) %>% 
+  dplyr::rename(wt_ca = wt_ca_bounded) %>% 
   data_process(ev = c("Fully electric")) %>% 
   left_join(CA_t %>% 
               st_drop_geometry() %>% 
@@ -908,6 +927,7 @@ dat1 <- read_csv("./data/raw/cca_15jul2025_weighted.csv") %>%
   data_clean(1) %>% 
   dplyr::select(-c("cost_combo_winter_final","cost_combo_summer_final"),
                 -c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv"),
-                -c("PS_int","EV_int","HP_int","IC_int"))
+                -c("PS_int","EV_int","HP_int","IC_int")) %>% 
+  filter(!is.na(wt_ca))
 
 # save(CA_t, dac_sf, cz, mrp, dat, dat1, file = "./data/data.RData")

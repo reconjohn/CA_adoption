@@ -127,7 +127,7 @@ for(k in 1:5){
 
 f4a <- peer %>%
   filter(key == "Both") %>% 
-  filter(!tech == "PS") %>% 
+  filter(!tech == "PS") %>%
   mutate(urban = ifelse(dac %in% c("Urban_DAC","Urban_Non_DAC"), "Urban", "Rural"),
          dac = ifelse(dac %in% c("Urban_DAC","Rural_DAC"), "DAC", "Non-DAC")) %>% 
   mutate(
@@ -184,6 +184,72 @@ f4a <- peer %>%
     panel.grid.major.x = element_blank(),
     panel.grid.minor.x = element_blank()
   ) 
+
+
+f4aa <- peer %>%
+  # filter(key == "Both") %>% 
+  # filter(tech == "PS") %>%
+  mutate(urban = ifelse(dac %in% c("Urban_DAC","Urban_Non_DAC"), "Urban", "Rural"),
+         dac = ifelse(dac %in% c("Urban_DAC","Rural_DAC"), "DAC", "Non-DAC")) %>% 
+  mutate(
+    tech = recode(tech,
+                  "PS" = "PV + Storage",
+                  "IC" = "Induction stoves",
+                  "HP" = "Heat pumps",
+                  "EV" = "Electric vehicles",
+                  "PV" = "Photovoltaics"),
+    tech = factor(tech, levels = c("Photovoltaics","PV + Storage", "Electric vehicles", "Heat pumps", "Induction stoves")),
+    # dac = factor(dac, levels = c("Urban_DAC", "Urban_Non_DAC", "Rural_DAC","Rural_Non_DAC")),
+    # key = "Peer effects"
+  ) %>% 
+  ggplot(aes(x = key, y = estimate, fill = dac)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
+  geom_errorbar(
+    aes(ymin = conf.low, ymax = conf.high),
+    position = position_dodge(width = 0.7),
+    width = 0.2,
+    color = "gray50"
+  ) +
+  
+  facet_grid(urban ~ tech, switch = "y") +
+  # scale_fill_manual(values = c(
+  #   "Urban_DAC"      = "#d94801",  # rich burnt orange
+  #   "Rural_DAC"      = "#fdae6b",  # soft apricot
+  #   "Urban_Non_DAC"  = "#238b45",  # deep forest green
+  #   "Rural_Non_DAC"  = "#a1d99b"   # light sage green
+  # ),
+  # 
+  # labels = c("Urban DAC", "Urban Non-DAC", "Rural DAC", "Rural Non-DAC")) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  scale_fill_manual(values = c("#C2A385","#4A6273")) +
+  labs(
+    x = "Peer effect",
+    y = "Effect magnitude",
+    fill = "",
+    title = ""
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 40, hjust = 1),
+    axis.title = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16, hjust = -0.1),
+    legend.text = element_text(size = 10),
+    legend.position = "right",
+    
+    strip.placement = "outside", # Keep labels on the outside
+    strip.background =element_rect(fill="gray22",color="gray22"),
+    strip.text = element_text(color = 'white',family="Franklin Gothic Book",size=14, face = "bold"),
+    strip.text.y.left = element_text(angle = 0), # Ensure domain labels are horizontal
+    
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  ) 
+
+
+ggsave("./fig/f4a.png",
+       f4aa,
+       width = 12, height = 8)
 
 
 # ### add urban variable
@@ -1973,7 +2039,7 @@ b <- cz %>%
   scale_fill_viridis_c(option = "magma") +
   # scale_fill_distiller(palette = "RdBu", direction = -1) +
 
-  labs(title = "", fill = "", x = "", y = "") +
+  labs(title = "C", fill = "HP random\neffect", x = "", y = "") +
   theme(legend.position = "bottom",
         # legend.text=element_text(size=6),
         # legend.key.size = unit(0.3, 'cm'),
@@ -1981,17 +2047,18 @@ b <- cz %>%
         axis.text.y = element_blank(),
         panel.grid.minor = element_blank(),
         panel.grid.major = element_blank(),
-        plot.title=element_text(family="Franklin Gothic Demi", size=15, hjust = 0.2))
+        plot.title=element_text(family="Franklin Gothic Demi", size=14, face = "bold"))
 
 
 c <- b_ev[[2]] %>% 
   left_join(climate_zone_data, by = "zone") %>% 
   mutate(IV = "Heat pumps") %>% 
   zone_plot() +
-  labs(title = "", y = "Random effect in order of HDD")
+  labs(title = "D", y = "Random effect in order of HDD") +
+  theme(plot.title=element_text(family="Franklin Gothic Demi", size=14, face = "bold"))
 
 
-f4c <- ggarrange(a,b,c, nrow = 1, widths = c(1.7,1,1.5))
+f4c <- ggarrange(a,b,c, nrow = 1, widths = c(1.7,1.7,1.5))
 
 
 ggsave("./fig/f4.png",

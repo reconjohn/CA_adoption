@@ -2052,9 +2052,9 @@ b <- cz %>%
 
 c <- b_ev[[2]] %>% 
   left_join(climate_zone_data, by = "zone") %>% 
-  mutate(IV = "Heat pumps") %>% 
+  mutate(IV = "Heat pump random effect") %>% 
   zone_plot() +
-  labs(title = "D", y = "Random effect in order of HDD") +
+  labs(title = "D", y = "Climate zone in order of HDD") +
   theme(plot.title=element_text(family="Franklin Gothic Demi", size=14, face = "bold"))
 
 

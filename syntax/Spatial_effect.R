@@ -8,13 +8,13 @@ df <- final %>%
   mutate(across(where(is.numeric), ~ scale(.) %>% as.numeric())) 
 
 ### average check
-# final %>% 
-#   pivot_wider(names_from = class, values_from = value) %>% 
+# final %>%
+#   pivot_wider(names_from = class, values_from = value) %>%
 #   left_join(CA_t %>% st_drop_geometry(), by = "GEOID") %>%
-#   summarise(across(where(is.numeric), ~ weighted.mean(.x, w = estimate, na.rm = TRUE))) %>% 
-#   t() %>% 
-#   as.data.frame() %>% 
-#   tibble::rownames_to_column(var = "name") 
+#   summarise(across(where(is.numeric), ~ weighted.mean(.x, w = estimate, na.rm = TRUE))) %>%
+#   t() %>%
+#   as.data.frame() %>%
+#   tibble::rownames_to_column(var = "name")
 
 
 df_long <- df %>%

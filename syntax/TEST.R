@@ -1564,3 +1564,9 @@ combined_df_wide <- combined_df %>%
 
 write_csv(combined_df_wide, "./data/result.csv")
 save(effect, file = "./data/results.Rdata") # for official sharing
+
+
+# low <- read_csv("./data/tr_low.csv")
+# high <- read_csv("./data/tr_high.csv")
+# 
+# mean(high$PS, na.rm = T)

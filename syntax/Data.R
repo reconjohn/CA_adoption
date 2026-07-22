@@ -307,3 +307,47 @@ for(i in 1:4){
   
   final <- rbind(tp, final)
 }
+
+# df <- final %>%
+#   separate(class, into = c("tech", "scen"), sep = "_") %>%
+#   dplyr::select(-scen) %>%
+#   pivot_wider(names_from = tech, values_from = value)
+# write_csv(df, file = "./data/tr_high.csv")
+
+
+# ### scenario for low
+# effect <- list()
+# for(i in 2:5){
+#   future <- "low"
+# 
+#   f_d <- final_ef_peer(data = data %>%
+#                          dplyr::select(VAR[[i-1]], climatezone, dac, matches("PV|PS|EV|HP|IC", ignore.case = FALSE),wt_ca),
+#                        i, future) %>%
+#     mutate(class = paste0(ipt[i],"_",future))
+# 
+#   effect <- append(effect, list(f_d))
+# 
+# }
+# 
+# 
+# ### final adoption by tract
+# final <- data.frame()
+# for(i in 1:4){
+#   tp <- effect[[i]] %>%
+#     mutate(
+#       peer_effect = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^peer")])), na.rm = TRUE)
+#       # home_age = rowSums(dplyr::select(., all_of(names(.)[str_detect(names(.), "^home_age")])), na.rm = TRUE)
+#     ) %>%
+#     dplyr::select(-ends_with(c("New","Newer","peer","none"))) %>%
+#     pivot_longer(cols = c(Effect, MRP, Final), names_to = "key", values_to = "value") %>%
+#     mutate(key = factor(key, levels = c("MRP","Effect","Final"))) %>%
+#     filter(key == "Final") %>%
+#     dplyr::select(GEOID, class, value)
+# 
+#   final <- rbind(tp, final)
+# }
+# df <- final %>%
+#   separate(class, into = c("tech", "scen"), sep = "_") %>%
+#   dplyr::select(-scen) %>%
+#   pivot_wider(names_from = tech, values_from = value)
+# write_csv(df, file = "./data/tr_low.csv")

@@ -433,7 +433,7 @@ daa <- bind_rows(daa1, new_rows) %>%
 
 
 # Identify the time-variant stages
-time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer effects")
+time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer exposures")
 
 fill_vals <- c(
   setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2")[c(3,1,2)],
@@ -460,6 +460,7 @@ f1a <- daa %>%
          tech = factor(tech, levels = c("PV + Storage","Heat pumps", "Induction stoves"))) %>% 
   mutate(stage = factor(stage,
                         levels = c("Current", "No subsidy", "Low support", "High support", "Extra high subsidy"))) %>% 
+  mutate(ST = ifelse(ST == "Peer effects", "Peer exposures", ST)) %>% 
   ggplot(aes(x = stage)) +
   
   geom_rect(aes(xmin = id - 0.45, xmax = id + 0.45, ymin = start, ymax = end, fill = ST)) +
@@ -947,14 +948,14 @@ d <- opt_result %>%
                                    ifelse(stage == "High support", 4, id)))))
 
 
-time_variant_stages <- c("Range", "Peer effects")
+time_variant_stages <- c("Range", "Peer exposures")
 fill_vals <- c(
   # setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2"),
   #          time_variant_stages),
   "Renters" = "brown4",
   "Homeowners" = "burlywood",
   "Range" = "gold4",
-  "Peer effects" = "#FC8D62",
+  "Peer exposures" = "#FC8D62",
   "Subsidy" = "azure3" 
 )
 
@@ -976,7 +977,9 @@ f1b <- d %>%
                      ifelse(sta == "Range", "Range","Subsidy")),
          ST = ifelse(stage == "Renters", "Renters",
                      ifelse(stage == "Current", "Homeowners", ST)),
-         ST = factor(ST, levels = c("Range", "Peer effects", "Subsidy","Homeowners","Renters"))) %>% 
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         ST = factor(ST, levels = c("Range", "Peer exposures", "Subsidy","Homeowners","Renters"))) %>% 
+
   ggplot(aes(x = stage)) +
   
   geom_rect_pattern(
@@ -1611,7 +1614,7 @@ daa <- bind_rows(daa1, new_rows) %>%
 
 
 # Identify the time-variant stages
-time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer effects")
+time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer exposures")
 
 fill_vals <- c(
   setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2")[c(3,1,2)],
@@ -1649,6 +1652,8 @@ f2a <- daa %>%
                             ifelse(sta == "New build 100%", "New build-100% adoption",
                                    ifelse(sta == "Rent", "Renters","Homeowners")))),
          ST = ifelse(stage %in% c("No subsidy","Low support","High support","Extra high subsidy"), "Subsidy", ST),
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         
          id = as.numeric(id), 
          tech = factor(tech, levels = c("PV + Storage","Heat pumps", "Induction stoves"))) %>% 
   
@@ -1762,6 +1767,7 @@ df_diff <- daa %>%
                             ifelse(sta == "New build 100%", "New build-100% adoption",
                                    ifelse(sta == "Rent", "Renters","Homeowners")))),
          ST = ifelse(stage %in% c("No subsidy","Low support","High support","Extra high subsidy"), "Subsidy", ST),
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
          id = as.numeric(id), 
          tech = factor(tech, levels = c("PV + Storage","Heat pumps", "Induction stoves"))) %>% 
   
@@ -2186,7 +2192,7 @@ d <- opt_result %>%
                                           ifelse(stage == "High", 4, id))))))
   
 
-time_variant_stages <- c("Range", "Peer effects")
+time_variant_stages <- c("Range", "Peer exposures")
 
 fill_vals <- c(
   # setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2"),
@@ -2194,7 +2200,7 @@ fill_vals <- c(
   "Renters" = "brown4",
   "Homeowners" = "burlywood",
   "Range" = "gold4",
-  "Peer effects" = "#FC8D62",
+  "Peer exposures" = "#FC8D62",
   "Subsidy" = "azure3" 
 )
 
@@ -2217,7 +2223,8 @@ f2c <- d %>%
                      ifelse(sta == "Range", "Range","Subsidy")),
          ST = ifelse(stage == "Renters", "Renters",
                      ifelse(stage == "Current", "Homeowners", ST)),
-         ST = factor(ST, levels = c("Range", "Peer effects", "Subsidy","Homeowners","Renters"))) %>% 
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         ST = factor(ST, levels = c("Range", "Peer exposures", "Subsidy","Homeowners","Renters"))) %>% 
   
   mutate(dac = ifelse(dac == "Non_DAC", "Non-DAC", dac),
          dac = factor(dac, levels = c("Non-DAC", "DAC"))) %>% 
@@ -2307,7 +2314,8 @@ df_diff <- d %>%
                      ifelse(sta == "Range", "Range","Subsidy")),
          ST = ifelse(stage == "Renters", "Renters",
                      ifelse(stage == "Current", "Homeowners", ST)),
-         ST = factor(ST, levels = c("Range", "Peer effects", "Subsidy","Homeowners","Renters"))) %>% 
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         ST = factor(ST, levels = c("Range", "Peer exposures", "Subsidy","Homeowners","Renters"))) %>% 
   
   mutate(dac = ifelse(dac == "Non_DAC", "Non-DAC", dac),
          dac = factor(dac, levels = c("Non-DAC", "DAC"))) %>% 
@@ -3175,7 +3183,7 @@ ggsave(
 )
 
 ############################################################################################################ sensitivity
-###################################################################### Three tech.
+###################################################################### doubling peer share
 data <- dat %>% 
   dplyr::select(-c("solstor_wtp_dv","ev_wtp_pc","heatpump_wtp_pc","induction_dv","solstor_wtp_dv")) 
 
@@ -3490,7 +3498,7 @@ d <- opt_result %>%
                                    ifelse(stage == "High support", 4, id)))))
 
 
-time_variant_stages <- c("Peer effects","Renters")
+time_variant_stages <- c("Peer exposures","Renters")
 fill_vals <- c(
   setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2"),
            time_variant_stages),
@@ -3607,7 +3615,7 @@ daa <- bind_rows(daa1, new_rows) %>%
 
 
 # Identify the time-variant stages
-time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer effects")
+time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer exposures")
 
 fill_vals <- c(
   setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2")[c(3,1,2)],
@@ -3630,6 +3638,7 @@ f1a <- daa %>%
                      ifelse(sta == "New build-50% adoption", "New build-50% adoption",
                             ifelse(sta == "New build-100% adoption", "New build-100% adoption",
                                    ifelse(sta == "Renters", "Renters","Homeowners")))),
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
          ST = ifelse(ST == "Homeowners" & sta %in% c("No subsidy","Low support","High support","Extra high subsidy"), "Subsidy", ST),
          tech = factor(tech, levels = c("PV + Storage","Heat pumps", "Induction stoves"))) %>% 
   mutate(stage = factor(stage,
@@ -4015,14 +4024,14 @@ d <- opt_result %>%
                                    ifelse(stage == "High support", 4, id)))))
 
 
-time_variant_stages <- c("Range", "Peer effects")
+time_variant_stages <- c("Range", "Peer exposures")
 fill_vals <- c(
   # setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2"),
   #          time_variant_stages),
   "Renters" = "brown4",
   "Homeowners" = "burlywood",
   "Range" = "gold4",
-  "Peer effects" = "#FC8D62",
+  "Peer exposures" = "#FC8D62",
   "Subsidy" = "azure3" 
 )
 
@@ -4044,7 +4053,8 @@ f1b <- d %>%
                      ifelse(sta == "Range", "Range","Subsidy")),
          ST = ifelse(stage == "Renters", "Renters",
                      ifelse(stage == "Current", "Homeowners", ST)),
-         ST = factor(ST, levels = c("Range", "Peer effects", "Subsidy","Homeowners","Renters"))) %>% 
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         ST = factor(ST, levels = c("Range", "Peer exposures", "Subsidy","Homeowners","Renters"))) %>% 
   ggplot(aes(x = stage)) +
   
   geom_rect_pattern(
@@ -4486,7 +4496,7 @@ d <- opt_result %>%
                                           ifelse(stage == "High", 4, id))))))
 
 
-time_variant_stages <- c("Peer effects","Rent")
+time_variant_stages <- c("Peer exposures","Rent")
 fill_vals <- c(
   setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2"),
            time_variant_stages),
@@ -4555,7 +4565,7 @@ daa <- bind_rows(daa1, new_rows) %>%
 
 
 # Identify the time-variant stages
-time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer effects")
+time_variant_stages <- c("New build-100% adoption", "New build-50% adoption", "Peer exposures")
 
 fill_vals <- c(
   setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2")[c(3,1,2)],
@@ -4592,6 +4602,7 @@ f2a <- daa %>%
                      ifelse(sta == "New build 50%", "New build-50% adoption",
                             ifelse(sta == "New build 100%", "New build-100% adoption",
                                    ifelse(sta == "Rent", "Renters","Homeowners")))),
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
          ST = ifelse(stage %in% c("No subsidy","Low support","High support","Extra high subsidy"), "Subsidy", ST),
          id = as.numeric(id), 
          tech = factor(tech, levels = c("PV + Storage","Heat pumps", "Induction stoves"))) %>% 
@@ -4705,6 +4716,7 @@ df_diff <- daa %>%
                      ifelse(sta == "New build 50%", "New build-50% adoption",
                             ifelse(sta == "New build 100%", "New build-100% adoption",
                                    ifelse(sta == "Rent", "Renters","Homeowners")))),
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
          ST = ifelse(stage %in% c("No subsidy","Low support","High support","Extra high subsidy"), "Subsidy", ST),
          id = as.numeric(id), 
          tech = factor(tech, levels = c("PV + Storage","Heat pumps", "Induction stoves"))) %>% 
@@ -5130,7 +5142,7 @@ d <- opt_result %>%
                                           ifelse(stage == "High", 4, id))))))
 
 
-time_variant_stages <- c("Range", "Peer effects")
+time_variant_stages <- c("Range", "Peer exposures")
 
 fill_vals <- c(
   # setNames(RColorBrewer::brewer.pal(length(time_variant_stages), "Set2"),
@@ -5138,7 +5150,7 @@ fill_vals <- c(
   "Renters" = "brown4",
   "Homeowners" = "burlywood",
   "Range" = "gold4",
-  "Peer effects" = "#FC8D62",
+  "Peer exposures" = "#FC8D62",
   "Subsidy" = "azure3" 
 )
 
@@ -5161,7 +5173,8 @@ f2c <- d %>%
                      ifelse(sta == "Range", "Range","Subsidy")),
          ST = ifelse(stage == "Renters", "Renters",
                      ifelse(stage == "Current", "Homeowners", ST)),
-         ST = factor(ST, levels = c("Range", "Peer effects", "Subsidy","Homeowners","Renters"))) %>% 
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         ST = factor(ST, levels = c("Range", "Peer exposures", "Subsidy","Homeowners","Renters"))) %>% 
   
   mutate(dac = ifelse(dac == "Non_DAC", "Non-DAC", dac),
          dac = factor(dac, levels = c("Non-DAC", "DAC"))) %>% 
@@ -5251,7 +5264,8 @@ df_diff <- d %>%
                      ifelse(sta == "Range", "Range","Subsidy")),
          ST = ifelse(stage == "Renters", "Renters",
                      ifelse(stage == "Current", "Homeowners", ST)),
-         ST = factor(ST, levels = c("Range", "Peer effects", "Subsidy","Homeowners","Renters"))) %>% 
+         ST = ifelse(ST == "Peer effects", "Peer exposures", ST),
+         ST = factor(ST, levels = c("Range", "Peer exposures", "Subsidy","Homeowners","Renters"))) %>% 
   
   mutate(dac = ifelse(dac == "Non_DAC", "Non-DAC", dac),
          dac = factor(dac, levels = c("Non-DAC", "DAC"))) %>% 

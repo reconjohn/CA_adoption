@@ -162,7 +162,7 @@ f4a <- peer %>%
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   scale_fill_manual(values = c("#C2A385","#4A6273")) +
   labs(
-    x = "Peer effect",
+    x = "Peer exposures",
     y = "Effect magnitude",
     fill = "",
     title = ""
@@ -223,7 +223,7 @@ f4aa <- peer %>%
   scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
   scale_fill_manual(values = c("#C2A385","#4A6273")) +
   labs(
-    x = "Peer effect",
+    x = "Peer exposures",
     y = "Effect magnitude",
     fill = "",
     title = ""
